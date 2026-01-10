@@ -11,12 +11,12 @@ COPY . .
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-platform-reqs
 
-# Permissões totais para garantir que o erro 500 por escrita suma
+# Libera permissões críticas para o Laravel escrever logs e sessões
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# RESET TOTAL: Deleta arquivos de cache físico antes de subir o Apache
-ENTRYPOINT ["/bin/sh", "-c", "rm -f bootstrap/cache/*.php && php artisan config:clear && php artisan cache:clear && php artisan view:clear && php artisan route:clear && apache2-foreground"]
+# ENTRYPOINT FINAL: Limpa arquivos físicos de cache e reconecta o banco
+ENTRYPOINT ["/bin/sh", "-c", "rm -rf bootstrap/cache/*.php storage/framework/views/*.php && php artisan config:clear && php artisan cache:clear && php artisan migrate --force && apache2-foreground"]
