@@ -11,12 +11,12 @@ COPY . .
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-platform-reqs
 
-# Garante permissão total para o Laravel escrever os arquivos da página
+# Aplica permissões para evitar novos erros 500
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# ENTRYPOINT simplificado: apenas limpa cache e sobe o servidor
+# ENTRYPOINT que limpa o cache da chave antiga
 ENTRYPOINT ["/bin/sh", "-c", "php artisan config:clear && php artisan cache:clear && php artisan view:clear && apache2-foreground"]
