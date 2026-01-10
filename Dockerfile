@@ -16,5 +16,5 @@ RUN chown -R www-data:www-data storage bootstrap/cache && chmod -R 775 storage b
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# Comando que força a limpeza de cache antes de conectar ao banco
+# ENTRYPOINT corrigido para limpar cache e rodar as tabelas
 ENTRYPOINT ["/bin/sh", "-c", "php artisan config:clear && php artisan migrate --force && apache2-foreground"]
