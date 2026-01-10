@@ -17,5 +17,5 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# ENTRYPOINT que força a limpeza de cache do JWT e do Banco
-ENTRYPOINT ["/bin/sh", "-c", "php artisan config:clear && php artisan cache:clear && php artisan jwt:secret --force ; php artisan migrate --force && apache2-foreground"]
+# ENTRYPOINT: Gera as chaves JWT e APP_KEY automaticamente com o tamanho correto
+ENTRYPOINT ["/bin/sh", "-c", "php artisan key:generate --force && php artisan jwt:secret --force && php artisan config:clear && php artisan cache:clear && php artisan migrate --force && apache2-foreground"]
