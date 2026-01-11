@@ -11,12 +11,12 @@ COPY . .
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-platform-reqs
 
-# Garante que o servidor tenha permissão para escrever logs e sessões
+# Permissões totais para garantir que nada trave
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# O COMANDO DEFINITIVO: Apaga caches físicos, gera chaves e sobe o site
-ENTRYPOINT ["/bin/sh", "-c", "rm -rf bootstrap/cache/*.php storage/framework/views/*.php && php artisan key:generate --force && php artisan jwt:secret --force && php artisan config:clear && php artisan cache:clear && php artisan migrate --force && apache2-foreground"]
+# O GOLPE FINAL: Limpeza física de arquivos de sessão e geração de chaves novas
+ENTRYPOINT ["/bin/sh", "-c", "rm -rf bootstrap/cache/*.php storage/framework/sessions/* storage/framework/views/*.php && php artisan key:generate --force && php artisan jwt:secret --force && php artisan config:clear && php artisan cache:clear && php artisan migrate --force && apache2-foreground"]
