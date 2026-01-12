@@ -11,8 +11,8 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-av
 
 RUN echo '#!/bin/sh\n\
 php artisan config:clear\n\
-# NOME CORRETO DO SEU SQL ABAIXO\n\
 export PGPASSWORD=$DB_PASSWORD\n\
+# Comando para injetar o banco viperpro.sql que esta na sua pasta sql\n\
 psql -h $DB_HOST -U $DB_USERNAME -d $DB_DATABASE -p $DB_PORT -f /var/www/html/sql/viperpro.sql > /dev/null 2>&1\n\
 sed -i "s/'\''key'\'' => .*,/'\''key'\'' => '\''base64:OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ='\'' ,/g" config/app.php\n\
 php artisan key:generate --force\n\
