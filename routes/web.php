@@ -1,5 +1,25 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
+
+// ROTA TEMPORÁRIA PARA INSTALAR O SQL
+Route::get('/', function () {
+    try {
+        $sqlPath = base_path('sql/viperpro.sql');
+        if (file_exists($sqlPath)) {
+            $sql = file_get_contents($sqlPath);
+            DB::unprepared($sql);
+            return "Banco de dados instalado com sucesso! Delete este código do web.php agora e atualize a página.";
+        }
+        return "Arquivo sql/viperpro.sql não encontrado no servidor.";
+    } catch (\Exception $e) {
+        return "Erro ao instalar: " . $e->getMessage();
+    }
+});
+
+<?php
+
 use App\Models\Game;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
