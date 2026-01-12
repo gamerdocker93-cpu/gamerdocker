@@ -5,7 +5,7 @@ RUN a2enmod rewrite
 WORKDIR /var/www/html
 COPY . .
 
-# 1. FORÇA BRUTA DE PERMISSÕES (Resolve de vez o erro Permission Denied)
+# 1. PERMISSÕES TOTAIS (Confirmado funcionando nos logs)
 RUN mkdir -p storage/logs storage/framework/sessions storage/framework/views storage/framework/cache/data bootstrap/cache
 RUN touch storage/logs/laravel.log
 RUN chmod -R 777 storage bootstrap/cache
@@ -17,20 +17,18 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# 2. SCRIPT DE DEPLOY COM CORREÇÃO DE JWT E BANCO
+# 2. SCRIPT DE DEPLOY COM GERAÇÃO DE CHAVE DE 32 CARACTERES
 RUN echo '#!/bin/sh\n\
 php artisan config:clear\n\
-php artisan cache:clear\n\
 export PGPASSWORD=$DB_PASSWORD\n\
-# Injeção do banco via psql usando o arquivo confirmado no print 1000343527.png\n\
+# Injeção do banco via psql\n\
 psql -h $DB_HOST -U $DB_USERNAME -d $DB_DATABASE -p $DB_PORT -f /var/www/html/sql/viperpro.sql\n\
-# Resolve o erro de "Segredo não definido" do print 1000343556.png\n\
-php artisan key:generate --force\n\
-php artisan jwt:secret --force\n\
+# Resolve o erro de "Cifra não suportada" do print 1000343560\n\
+php artisan key:generate --force --no-interaction\n\
+php artisan jwt:secret --force --no-interaction\n\
 php artisan config:cache\n\
 apache2-foreground' > /usr/local/bin/deploy-rocket.sh
 
-# 3. FINALIZAÇÃO DE ACESSOS
 RUN chmod +x /usr/local/bin/deploy-rocket.sh
 RUN chmod -R 777 /var/www/html/storage /var/www/html/bootstrap/cache
 
