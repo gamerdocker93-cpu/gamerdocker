@@ -7,12 +7,18 @@ use Illuminate\Support\Facades\DB;
 
 /*
 |--------------------------------------------------------------------------
-| INSTALADOR AUTOMÁTICO (TESTA OS DOIS ARQUIVOS)
+| CORRETOR DE PERMISSÕES E INSTALADOR (PARA PLANO FREE)
 |--------------------------------------------------------------------------
 */
 Route::get('/', function () {
     try {
-        // Testa os dois nomes que aparecem na sua pasta SQL
+        // 1. Tenta liberar as pastas que deram erro no print 1000343531.png
+        $storagePath = storage_path();
+        $cachePath = base_path('bootstrap/cache');
+        @chmod($storagePath, 0777);
+        @chmod($cachePath, 0777);
+
+        // 2. Procura o arquivo SQL (testa os dois nomes que vimos na sua pasta)
         $files = ['sql/viperpro.sql', 'sql/viperpro.1.6.1.sql'];
         $foundFile = null;
 
@@ -23,26 +29,28 @@ Route::get('/', function () {
             }
         }
 
-        if (!$foundFile) {
-            return "<h1>ERRO CRÍTICO</h1><p>Nenhum dos arquivos (.sql) foi encontrado na pasta /sql/. Verifique o nome da pasta no GitHub.</p>";
+        if ($foundFile) {
+            $sql = file_get_contents(base_path($foundFile));
+            DB::unprepared($sql);
+            Artisan::call('optimize:clear');
+            return "<h1>SUCESSO!</h1><p>Permissoes aplicadas e banco instalado via: $foundFile</p>";
         }
 
-        $sql = file_get_contents(base_path($foundFile));
-        DB::unprepared($sql);
-        
-        return "<h1>SUCESSO TOTAL!</h1><p>Banco de dados instalado usando o arquivo: <b>$foundFile</b>. <br>Agora apague este bloco de instalador do web.php para o site abrir.</p>";
-        
+        return "<h1>QUASE LÁ</h1><p>Permissoes aplicadas, mas o arquivo SQL nao foi encontrado na pasta /sql/. Verifique o GitHub.</p>";
+
     } catch (\Exception $e) {
+        // Se as tabelas já existirem, ele cai aqui e apenas limpa o cache
         if (str_contains($e->getMessage(), 'already exists')) {
-            return "<h1>O BANCO JÁ ESTÁ PRONTO</h1><p>As tabelas já existem. Remova este instalador do web.php para ver o site.</p>";
+            Artisan::call('optimize:clear');
+            return "<h1>PRONTO!</h1><p>O banco ja estava instalado. Remova este instalador do web.php para o site original carregar.</p>";
         }
-        return "<h1>ERRO NA INSTALAÇÃO</h1><pre>" . $e->getMessage() . "</pre>";
+        return "<h1>ERRO NA OPERAÇÃO</h1><pre>" . $e->getMessage() . "</pre>";
     }
 });
 
 /*
 |--------------------------------------------------------------------------
-| Web Routes (SEU CÓDIGO ORIGINAL ABAIXO)
+| SUAS ROTAS ORIGINAIS (MANTIDAS INTEGRALMENTE)
 |--------------------------------------------------------------------------
 */
 
