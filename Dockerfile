@@ -22,10 +22,12 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
+# SCRIPT DE BOOT REVISADO - USANDO AS VARIAVEIS DIRETAS
 RUN echo '#!/bin/sh\n\
 php artisan config:clear\n\
-# O segredo: Tentamos injetar, mas sem travar o boot se ja existir\n\
-psql $DATABASE_URL -f /var/www/html/sql/install.sql > /dev/null 2>&1\n\
+# Injeção usando as variáveis separadas (mais seguro)\n\
+export PGPASSWORD=$DB_PASSWORD\n\
+psql -h $DB_HOST -U $DB_USERNAME -d $DB_DATABASE -p $DB_PORT -f /var/www/html/sql/install.sql > /dev/null 2>&1\n\
 sed -i "s/'\''key'\'' => .*,/'\''key'\'' => '\''base64:OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ='\'' ,/g" config/app.php\n\
 php artisan key:generate --force\n\
 php artisan jwt:secret --force\n\
