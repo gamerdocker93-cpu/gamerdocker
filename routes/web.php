@@ -1,52 +1,51 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\DB;
-
-// ROTA TEMPORÁRIA PARA INSTALAR O SQL
-Route::get('/', function () {
-    try {
-        $sqlPath = base_path('sql/viperpro.sql');
-        if (file_exists($sqlPath)) {
-            $sql = file_get_contents($sqlPath);
-            DB::unprepared($sql);
-            return "Banco de dados instalado com sucesso! Delete este código do web.php agora e atualize a página.";
-        }
-        return "Arquivo sql/viperpro.sql não encontrado no servidor.";
-    } catch (\Exception $e) {
-        return "Erro ao instalar: " . $e->getMessage();
-    }
-});
-
-<?php
-
 use App\Models\Game;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 
 /*
 |--------------------------------------------------------------------------
-| Web Routes
+| INSTALADOR AUTOMÁTICO (TEMPORÁRIO)
 |--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "web" middleware group. Make something great!
-|Sme
 */
+Route::get('/', function () {
+    try {
+        $sqlPath = base_path('sql/viperpro.sql');
+        
+        if (!file_exists($sqlPath)) {
+            return "Erro: O arquivo sql/viperpro.sql nao foi encontrado. Verifique se a pasta se chama 'sql' no seu GitHub.";
+        }
+
+        $sql = file_get_contents($sqlPath);
+        DB::unprepared($sql);
+        
+        return "<h1>Banco de dados instalado com sucesso!</h1><p>Agora apague este bloco de instalador do arquivo web.php para liberar o acesso ao site.</p>";
+        
+    } catch (\Exception $e) {
+        // Se der erro de "tabela ja existe", significa que ja instalou, entao podemos seguir.
+        if (str_contains($e->getMessage(), 'already exists')) {
+            return "O banco de dados ja parece estar instalado. Tente acessar as outras rotas.";
+        }
+        return "Erro na instalacao: " . $e->getMessage();
+    }
+});
+
+/*
+|--------------------------------------------------------------------------
+| Web Routes (SEU CÓDIGO ORIGINAL ABAIXO)
+|--------------------------------------------------------------------------
+*/
+
 Route::get('/test', function() {
    $wallet = \App\Models\Wallet::find(1);
    $price = 5;
-
    \App\Helpers\Core::payBonusVip($wallet, $price);
-
 });
-Route::get('clear', function() {
-    Artisan::command('clear', function () {
-        Artisan::call('optimize:clear');
-       return back();
-    });
 
+Route::get('clear', function() {
+    Artisan::call('optimize:clear');
     return back();
 });
 
@@ -61,4 +60,5 @@ include_once(__DIR__ . '/groups/auth/social.php');
 
 // APP
 include_once(__DIR__ . '/groups/layouts/app.php');
+
 
