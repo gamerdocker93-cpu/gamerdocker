@@ -10,8 +10,11 @@ return [
     'locale' => 'en',
     'fallback_locale' => 'en',
     'faker_locale' => 'en_US',
-    'key' => env('APP_KEY', 'base64:OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ='),
+    
+    // ALTERAÇÃO CRÍTICA: VALORES FIXOS SEM FUNÇÃO ENV
+    'key' => 'base64:OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ=',
     'cipher' => 'AES-256-CBC',
+
     'providers' => [
         Illuminate\Auth\AuthServiceProvider::class,
         Illuminate\Broadcasting\BroadcastServiceProvider::class,
@@ -81,4 +84,5 @@ return [
         'View' => Illuminate\Support\Facades\View::class,
     ],
 ];
+
 
