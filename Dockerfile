@@ -5,9 +5,8 @@ RUN a2enmod rewrite
 WORKDIR /var/www/html
 COPY . .
 
-# 1. DESTRANCA AS PERMISSÕES (Resolve o "Permission Denied")
+# PERMISSÕES (Garante que o erro de log nunca mais volte)
 RUN mkdir -p storage/logs storage/framework/sessions storage/framework/views storage/framework/cache/data bootstrap/cache
-RUN touch storage/logs/laravel.log
 RUN chmod -R 777 storage bootstrap/cache
 RUN chown -R www-data:www-data storage bootstrap/cache
 
@@ -17,24 +16,22 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# 2. SCRIPT DE DEPLOY "NO SOCO" (Limpa e Reinstala)
+# SCRIPT DE DEPLOY RIGOROSO
 RUN echo '#!/bin/sh\n\
 php artisan config:clear\n\
 php artisan cache:clear\n\
-# FORÇA A CIFRA AES-256-CBC (Resolve o erro do print 1000343576.png)\n\
-sed -i "s/'\''cipher'\'' => .*,/'\''cipher'\'' => '\''AES-256-CBC'\'',/g" config/app.php\n\
+\n\
+# FORÇA O BANCO A LIMPAR E REIMPORTAR O SQL 1.6.1\n\
 export PGPASSWORD=$DB_PASSWORD\n\
-# LIMPEZA TOTAL DO BANCO\n\
 psql -h $DB_HOST -U $DB_USERNAME -d $DB_DATABASE -p $DB_PORT -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"\n\
-# IMPORTA O SQL MAIS COMPLETO\n\
 psql -h $DB_HOST -U $DB_USERNAME -d $DB_DATABASE -p $DB_PORT -f /var/www/html/sql/viperpro.1.6.1.sql\n\
-# GERA CHAVES NOVAS DE 32 CARACTERES (Resolve o erro do print 1000343580.png)\n\
-php artisan key:generate --force --no-interaction\n\
-php artisan jwt:secret --force --no-interaction\n\
+\n\
+# GERA AS CHAVES QUE ESTÃO FALTANDO (Resolve o erro do print 1000343588.png)\n\
+php artisan key:generate --force\n\
+php artisan jwt:secret --force\n\
+\n\
 php artisan config:cache\n\
 apache2-foreground' > /usr/local/bin/deploy-rocket.sh
 
 RUN chmod +x /usr/local/bin/deploy-rocket.sh
-RUN chmod -R 777 /var/www/html/storage /var/www/html/bootstrap/cache
-
 ENTRYPOINT ["deploy-rocket.sh"]
