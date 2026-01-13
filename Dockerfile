@@ -5,14 +5,15 @@ RUN a2enmod rewrite
 WORKDIR /var/www/html
 COPY . .
 
-# DEFINIÇÃO DA CHAVE MESTRA (NÃO MEXER, ELA ESTÁ FUNCIONANDO!)
+# DEFINIÇÃO DA CHAVE MESTRA
 ENV APP_KEY=base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=
 ENV APP_DEBUG=true
 ENV APP_ENV=production
 
-# Garante permissões
+# LIMPEZA ATÔMICA: Removemos QUALQUER cache que você tenha enviado sem querer no GitHub
 RUN mkdir -p storage/framework/sessions storage/framework/views storage/framework/cache/data bootstrap/cache \
     && rm -rf bootstrap/cache/*.php \
+    && rm -rf storage/framework/views/*.php \
     && chmod -R 777 storage bootstrap/cache \
     && chown -R www-data:www-data /var/www/html
 
@@ -22,18 +23,20 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# SCRIPT DE INICIALIZAÇÃO FINAL
+# SCRIPT DE INICIALIZAÇÃO "FORCE"
 RUN echo '#!/bin/sh\n\
-# Força a criação do .env para garantir que o erro de Cipher nunca volte\n\
+# 1. Cria o .env físico\n\
 echo "APP_KEY=base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=" > .env\n\
+echo "APP_CIPHER=AES-256-CBC" >> .env\n\
 \n\
+# 2. Limpa TUDO no boot\n\
 php artisan config:clear\n\
 php artisan cache:clear\n\
 php artisan view:clear\n\
 php artisan route:clear\n\
 \n\
-# O ÚLTIMO PASSO: Tenta migrar. Se der erro, ignoramos para o site abrir\n\
-php artisan migrate --force || echo "Migracao concluida ou com aviso"\n\
+# 3. Migrações silenciosas\n\
+php artisan migrate --force || echo "Migracao ignorada"\n\
 \n\
 apache2-foreground' > /usr/local/bin/start-app.sh
 
