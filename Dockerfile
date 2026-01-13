@@ -18,16 +18,18 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# SCRIPT PARA PLANO FREE: Limpa tudo e tenta migrar sem travar o Apache
+# SCRIPT DE EMERGÊNCIA: Prioriza subir o site, tenta migrar mas não trava o Apache
 RUN echo '#!/bin/sh\n\
 rm -f /var/www/html/bootstrap/cache/config.php\n\
 php artisan config:clear\n\
 php artisan cache:clear\n\
-# O "|| true" é vital no plano Free para o site não dar erro 500 se o banco demorar a acordar\n\
-php artisan migrate:fresh --force || true\n\
+php artisan view:clear\n\
+# Tentamos o migrate:fresh, mas se houver erro na tabela game_exclusives, o site sobe mesmo assim\n\
+php artisan migrate:fresh --force || echo "Aviso: Erro nas migrações, mas o site continuará subindo..."\n\
 apache2-foreground' > /usr/local/bin/start-app.sh
 
 RUN chmod +x /usr/local/bin/start-app.sh
 
 CMD ["/usr/local/bin/start-app.sh"]
+
 
