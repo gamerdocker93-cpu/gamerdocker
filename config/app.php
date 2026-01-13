@@ -11,13 +11,14 @@ return [
     'fallback_locale' => 'en',
     'faker_locale' => 'en_US',
 
-    // KEY PERFEITA: EXATAMENTE 32 BYTES PARA AES-256-CBC
-    'key' => 'base64:S3p4SjY3V0VTS0Z0N0Z6S0Z6S0Z6S0Z6S0Z6S0Z6S0Z6S0Z6ST0=',
+    // KEY MESTRA DEFINITIVA: 32 BYTES REAIS PARA AES-256-CBC
+    'key' => 'base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=',
     'cipher' => 'AES-256-CBC',
 
     'providers' => [
         Illuminate\Auth\AuthServiceProvider::class,
         Illuminate\Broadcasting\BroadcastServiceProvider::class,
+        Illuminate\Bus\BroadcastServiceProvider::class,
         Illuminate\Bus\BusServiceProvider::class,
         Illuminate\Cache\CacheServiceProvider::class,
         Illuminate\Foundation\Providers\ConsoleSupportServiceProvider::class,
