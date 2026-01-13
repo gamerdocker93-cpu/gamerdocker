@@ -5,6 +5,11 @@ RUN a2enmod rewrite
 WORKDIR /var/www/html
 COPY . .
 
+# INJEÇÃO DA CHAVE MESTRA (Resolve o erro de Cipher e Key Length)
+ENV APP_KEY=base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=
+ENV APP_DEBUG=true
+ENV APP_ENV=production
+
 # Garante permissões e limpa cache no build
 RUN mkdir -p storage/framework/sessions storage/framework/views storage/framework/cache/data bootstrap/cache \
     && rm -f bootstrap/cache/*.php \
@@ -18,18 +23,20 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# SCRIPT DE EMERGÊNCIA: Prioriza subir o site, tenta migrar mas não trava o Apache
+# SCRIPT DE INICIALIZAÇÃO BLINDADO
 RUN echo '#!/bin/sh\n\
-rm -f /var/www/html/bootstrap/cache/config.php\n\
+# Limpeza de caches antigos para evitar conflitos de configuração\n\
 php artisan config:clear\n\
 php artisan cache:clear\n\
 php artisan view:clear\n\
-# Tentamos o migrate:fresh, mas se houver erro na tabela game_exclusives, o site sobe mesmo assim\n\
-php artisan migrate:fresh --force || echo "Aviso: Erro nas migrações, mas o site continuará subindo..."\n\
+# Tenta rodar as migrações sem apagar tudo (mais leve para o plano Free)\n\
+# Se der erro na tabela game_exclusives, o site sobe mesmo assim para você ver a tela\n\
+php artisan migrate --force || echo "Aviso: Tabelas ja existem ou erro de migracao, ignorando..."\n\
 apache2-foreground' > /usr/local/bin/start-app.sh
 
 RUN chmod +x /usr/local/bin/start-app.sh
 
 CMD ["/usr/local/bin/start-app.sh"]
+
 
 
