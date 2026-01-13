@@ -5,12 +5,20 @@ RUN a2enmod rewrite
 WORKDIR /var/www/html
 COPY . .
 
-# DEFINIÇÃO DA CHAVE DIRETAMENTE NO CONTAINER
+# --- CONFIGURAÇÃO CHUMBADA (ESTRATÉGIA DE FORÇA BRUTA) ---
 ENV APP_KEY=base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=
 ENV APP_DEBUG=true
 ENV APP_ENV=production
 
-# LIMPEZA TOTAL DE CACHE NO BUILD
+ENV DB_CONNECTION=pgsql
+ENV DB_HOST=dpg-d5ilblkhg0os738mds90-a
+ENV DB_PORT=5432
+ENV DB_DATABASE=gamedocker
+ENV DB_USERNAME=gamedocker_user
+ENV DB_PASSWORD=79ICALvAosgFplyYmwc3QK4gtMhfrZlC
+# -------------------------------------------------------
+
+# Limpeza e permissões
 RUN mkdir -p storage/framework/sessions storage/framework/views storage/framework/cache/data bootstrap/cache \
     && rm -rf bootstrap/cache/*.php \
     && chmod -R 777 storage bootstrap/cache \
@@ -22,20 +30,21 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# SCRIPT DE BOOT: Força a criação do .env e limpa caches toda vez que o site sobe
+# SCRIPT DE BOOT: Força o Laravel a ler estas variáveis e ignorar caches
 RUN echo '#!/bin/sh\n\
-# Criando o .env na hora para matar o erro de Cipher\n\
-echo "APP_KEY=base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=" > .env\n\
-echo "APP_ENV=production" >> .env\n\
-echo "APP_DEBUG=true" >> .env\n\
+# Cria o .env físico com os dados chumbados para não ter erro de leitura\n\
+echo "APP_KEY=${APP_KEY}" > .env\n\
+echo "DB_CONNECTION=pgsql" >> .env\n\
+echo "DB_HOST=${DB_HOST}" >> .env\n\
+echo "DB_DATABASE=${DB_DATABASE}" >> .env\n\
+echo "DB_USERNAME=${DB_USERNAME}" >> .env\n\
+echo "DB_PASSWORD=${DB_PASSWORD}" >> .env\n\
 \n\
-# Comandos de limpeza para o Plano Free\n\
 php artisan config:clear\n\
 php artisan cache:clear\n\
-php artisan view:clear\n\
 \n\
-# Migrações silenciosas (se falhar, o site sobe mesmo assim)\n\
-php artisan migrate --force || echo "Aviso: Migracao ignorada"\n\
+# Tenta rodar as migrações (se falhar, o site sobe mesmo assim para vermos o erro)\n\
+php artisan migrate --force || echo "Aviso: Migração ignorada"\n\
 \n\
 apache2-foreground' > /usr/local/bin/start-app.sh
 
