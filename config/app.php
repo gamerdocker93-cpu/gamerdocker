@@ -1,6 +1,7 @@
 <?php
 
 return [
+
     'name' => env('APP_NAME', 'Laravel'),
     'env' => env('APP_ENV', 'production'),
     'debug' => (bool) env('APP_DEBUG', false),
@@ -11,12 +12,15 @@ return [
     'fallback_locale' => 'en',
     'faker_locale' => 'en_US',
 
-    // KEY MESTRA DE 32 BYTES - NÃO MEXER
+    // KEY MESTRA DE 32 BYTES - ALINHAMENTO PERFEITO PARA AES-256-CBC
     'key' => 'base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=',
     'cipher' => 'AES-256-CBC',
 
     'providers' => [
-        /* Laravel Framework Service Providers... */
+
+        /*
+         * Laravel Framework Service Providers...
+         */
         Illuminate\Auth\AuthServiceProvider::class,
         Illuminate\Broadcasting\BroadcastServiceProvider::class,
         Illuminate\Bus\BusServiceProvider::class,
@@ -40,14 +44,18 @@ return [
         Illuminate\Validation\ValidationServiceProvider::class,
         Illuminate\View\ViewServiceProvider::class,
 
-        /* Application Service Providers... */
+        /*
+         * Application Service Providers... (CORRIGIDOS)
+         */
         App\Providers\AppServiceProvider::class,
         App\Providers\AuthServiceProvider::class,
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
+
     ],
 
     'aliases' => [
+
         'App' => Illuminate\Support\Facades\App::class,
         'Arr' => Illuminate\Support\Arr::class,
         'Artisan' => Illuminate\Support\Facades\Artisan::class,
@@ -86,7 +94,9 @@ return [
         'URL' => Illuminate\Support\Facades\URL::class,
         'Validator' => Illuminate\Support\Facades\Validator::class,
         'View' => Illuminate\Support\Facades\View::class,
+
     ],
+
 ];
 
 
