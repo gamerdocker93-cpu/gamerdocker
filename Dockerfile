@@ -13,19 +13,23 @@ RUN mkdir -p storage/framework/sessions storage/framework/views storage/framewor
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# AJUSTE CRÍTICO: Adicionado --no-scripts para evitar falha no build por falta de banco
+# Instalação limpa das dependências
 RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-platform-reqs --no-scripts
 
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# O SEGREDO: Script que roda TODA VEZ que o container inicia
+# O SEGREDO ATUALIZADO: Limpa o cache e FORÇA a criação das tabelas no banco da Render
 RUN echo '#!/bin/sh\n\
 rm -f /var/www/html/bootstrap/cache/config.php\n\
 php artisan config:clear\n\
 php artisan cache:clear\n\
+php artisan view:clear\n\
+# Comando vital para o plano pago: cria as tabelas se elas não existirem\n\
+php artisan migrate --force\n\
 apache2-foreground' > /usr/local/bin/start-app.sh
 
 RUN chmod +x /usr/local/bin/start-app.sh
 
 CMD ["/usr/local/bin/start-app.sh"]
+
