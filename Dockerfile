@@ -5,13 +5,12 @@ RUN a2enmod rewrite
 WORKDIR /var/www/html
 COPY . .
 
-# DEFINIÇÃO DA CHAVE MESTRA DIRETAMENTE NO CONTAINER
+# DEFINIÇÃO DA CHAVE (ESTA É A CHAVE QUE MATA O ERRO DE CIPHER)
 ENV APP_KEY=base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=
 ENV APP_DEBUG=true
 ENV APP_ENV=production
-ENV APP_CIPHER=AES-256-CBC
 
-# LIMPEZA PROFUNDA: Removemos os arquivos de cache que podem estar travando o erro
+# LIMPEZA FÍSICA DE CACHE (IMPORTANTE APÓS RESET)
 RUN mkdir -p storage/framework/sessions storage/framework/views storage/framework/cache/data bootstrap/cache \
     && rm -rf bootstrap/cache/*.php \
     && chmod -R 777 storage bootstrap/cache \
@@ -23,14 +22,13 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# SCRIPT DE INICIALIZAÇÃO: Ele vai forçar o Laravel a reconhecer a nova chave
+# SCRIPT DE INICIALIZAÇÃO
 RUN echo '#!/bin/sh\n\
-# Deleta caches novamente no boot por segurança\n\
-rm -f /var/www/html/bootstrap/cache/config.php\n\
+# Limpa caches no boot\n\
 php artisan config:clear\n\
 php artisan cache:clear\n\
-# Tenta rodar as migrações (se falhar, o site sobe assim mesmo)\n\
-php artisan migrate --force || echo "Migracao pulada"\n\
+# Tenta rodar as migrações (O reset pode exigir que o banco seja validado de novo)\n\
+php artisan migrate --force || echo "Migracao ignorada"\n\
 apache2-foreground' > /usr/local/bin/start-app.sh
 
 RUN chmod +x /usr/local/bin/start-app.sh
