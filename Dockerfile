@@ -24,18 +24,16 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-av
 
 # SCRIPT DE INICIALIZAÇÃO "MATADOR"
 RUN echo '#!/bin/sh\n\
-# CRIA UM ARQUIVO .ENV NA HORA COM A CHAVE CORRETA\n\
+# FORÇA A CRIAÇÃO DO ARQUIVO .ENV COM A CHAVE CORRETA\n\
 echo "APP_KEY=base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=" > .env\n\
-echo "APP_ENV=production" >> .env\n\
-echo "APP_DEBUG=true" >> .env\n\
-echo "APP_URL=${RENDER_EXTERNAL_URL}" >> .env\n\
+echo "APP_CIPHER=AES-256-CBC" >> .env\n\
 \n\
-# Limpa caches e força a leitura do novo .env\n\
+# Limpa caches para garantir que o Laravel leia o novo .env\n\
 php artisan config:clear\n\
 php artisan cache:clear\n\
 php artisan view:clear\n\
 \n\
-# Tenta rodar as migrações\n\
+# Tenta rodar as migrações (se falhar, o site sobe mesmo assim)\n\
 php artisan migrate --force || echo "Migracao ignorada"\n\
 \n\
 apache2-foreground' > /usr/local/bin/start-app.sh
