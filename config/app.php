@@ -12,9 +12,10 @@ return [
     'fallback_locale' => 'en',
     'faker_locale' => 'en_US',
 
-    // KEY MESTRA DE 32 BYTES - ALINHAMENTO PERFEITO PARA AES-256-CBC
-    'key' => 'base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=',
+        // VOLTE PARA O PADRÃO: Isso permite que o Laravel decodifique o base64 do Docker
+    'key' => env('APP_KEY'),
     'cipher' => 'AES-256-CBC',
+
 
     'providers' => [
 
