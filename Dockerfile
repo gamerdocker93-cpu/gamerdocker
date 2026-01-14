@@ -27,13 +27,13 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# SCRIPT DE SINCRONIZAÇÃO TOTAL (SAÍDA DAS 20 FAIXAS VERMELHAS)
+# SCRIPT DE INICIALIZAÇÃO (PRECISÃO TOTAL - CRIAÇÃO DE TABELAS)
 RUN echo '#!/bin/sh\n\
-# 1. Limpeza física absoluta\n\
+# 1. Limpeza física radical\n\
 rm -rf bootstrap/cache/*.php\n\
 rm -rf storage/framework/views/*.php\n\
 \n\
-# 2. Injeção de Ambiente (Usando Host Interno para Velocidade)\n\
+# 2. Injeção de Ambiente\n\
 echo "APP_KEY=base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=" > .env\n\
 echo "DB_CONNECTION=pgsql" >> .env\n\
 echo "DB_HOST=dpg-d5ilblkhg0os738mds90-a" >> .env\n\
@@ -44,13 +44,12 @@ echo "DB_PASSWORD=79ICALvAosgFplyYmwc3QK4gtMhfrZlC" >> .env\n\
 echo "APP_ENV=production" >> .env\n\
 echo "APP_DEBUG=true" >> .env\n\
 \n\
-# 3. Limpeza de rastro de cache\n\
+# 3. Limpeza via Artisan\n\
 php artisan config:clear\n\
 php artisan cache:clear\n\
 \n\
-# 4. CONSTRUÇÃO DO BANCO (O PONTO CHAVE)\n\
-# Este comando cria as tabelas que estão faltando e limpa os erros de "Undefined table"\n\
-php artisan migrate:fresh --force || php artisan migrate --force\n\
+# 4. COMANDO DE OURO: Cria as tabelas do zero para matar o erro de "Relation not exist"\n\
+php artisan migrate:fresh --force\n\
 \n\
 apache2-foreground' > /usr/local/bin/start-app.sh
 
