@@ -27,12 +27,12 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# SCRIPT DE INICIALIZAÇÃO DE ALTA PRECISÃO
+# SCRIPT DE INICIALIZAÇÃO DE ALTA PRECISÃO (VERSÃO FINAL CORRIGIDA)
 RUN echo '#!/bin/sh\n\
 # Injeção forçada de ambiente\n\
 echo "APP_KEY=base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=" > .env\n\
 echo "DB_CONNECTION=pgsql" >> .env\n\
-echo "DB_HOST=dpg-d5ilblkhg0os738mds90-a.oregon-postgres.render.com" >> .env\n\
+echo "DB_HOST=dpg-d5ilblkhg0os738mds90-a" >> .env\n\
 echo "DB_PORT=5432" >> .env\n\
 echo "DB_DATABASE=gamedocker" >> .env\n\
 echo "DB_USERNAME=gamedocker_user" >> .env\n\
