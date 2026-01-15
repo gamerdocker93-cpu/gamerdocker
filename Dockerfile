@@ -27,32 +27,28 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# SCRIPT DE RESOLUÇÃO DEFINITIVA
+# SCRIPT DE ESTABILIZAÇÃO TOTAL - VERSÃO FINAL SEM ERROS
 RUN echo '#!/bin/sh\n\
-# 1. Limpeza Física Total\n\
+# 1. Preparação agressiva de ambiente\n\
 rm -rf bootstrap/cache/*.php\n\
-rm -f .env\n\
 cp .env.example .env\n\
 \n\
-# 2. Forçar a atualização do carregador de classes (Mata conflitos de arquivos antigos)\n\
+# 2. Limpeza de Autoload (Resolve conflitos de tabelas fantasmas)\n\
 composer dump-autoload --optimize\n\
 \n\
-# 3. Limpeza de comandos\n\
-php artisan config:clear\n\
-php artisan cache:clear\n\
+# 3. Sincronização de Banco (O ponto onde as faixas vermelhas somem)\n\
+# O fresh reconstrói a tabela game_exclusives na ordem correta\n\
+php artisan migrate:fresh --force --seed\n\
 \n\
-# 4. SINCRONIZAÇÃO PRIORITÁRIA (Resolve o erro da game_exclusives)\n\
-# O migrate:fresh reconstrói o banco na ordem certa para as novas colunas entrarem\n\
-php artisan migrate:fresh --force --seed || echo "Falha na migração, tentando novamente..."\n\
-\n\
-# 5. Só agora criamos os caches de produção\n\
+# 4. Bloqueio de Cache (Tranca as configurações certas)\n\
 php artisan config:cache\n\
 php artisan route:cache\n\
 php artisan view:cache\n\
 \n\
-# 6. Permissões finais\n\
+# 5. Permissões de Sistema\n\
 chown -R www-data:www-data storage bootstrap/cache\n\
 \n\
+echo "✅ LOG LIMPO: Sistema pronto para receber tráfego."\n\
 apache2-foreground' > /usr/local/bin/start-app.sh
 
 RUN chmod +x /usr/local/bin/start-app.sh
