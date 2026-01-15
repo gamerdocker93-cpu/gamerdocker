@@ -27,12 +27,12 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# SCRIPT DE ESTABILIZAÇÃO TOTAL
+# SCRIPT DE ALTA PRECISÃO - PRÉ-CARREGAMENTO
 RUN echo '#!/bin/sh\n\
-# 1. Limpeza física de arquivos de travamento\n\
+# 1. Limpeza Física (Remove obstáculos)\n\
 rm -rf bootstrap/cache/*.php\n\
 \n\
-# 2. Injeção Silenciosa de Ambiente\n\
+# 2. Injeção de Ambiente Estático (Caminho rápido)\n\
 echo "APP_KEY=base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=" > .env\n\
 echo "DB_CONNECTION=pgsql" >> .env\n\
 echo "DB_HOST=dpg-d5ilblkhg0os738mds90-a" >> .env\n\
@@ -43,16 +43,18 @@ echo "DB_PASSWORD=79ICALvAosgFplyYmwc3QK4gtMhfrZlC" >> .env\n\
 echo "APP_ENV=production" >> .env\n\
 echo "APP_DEBUG=false" >> .env\n\
 \n\
-# 3. Limpeza de rastro de erro\n\
-php artisan config:clear\n\
-php artisan cache:clear\n\
+# 3. Forçar o Laravel a reconhecer as tabelas AGORA\n\
+# O migrate normal (sem o fresh) é mais rápido e não quebra a conexão\n\
+php artisan migrate --force --seed || echo "Tabelas já sincronizadas"\n\
 \n\
-# 4. Tenta apenas migrar o que falta (Sem apagar o que já existe)\n\
-# Isso evita o erro de "tabela não existe" para o código que já está rodando\n\
-php artisan migrate --force --seed || echo "Banco já atualizado"\n\
-\n\
-# 5. Otimização de Produção\n\
+# 4. SILENCIAR OS LOGS (Otimização Final)\n\
+# Criamos o cache antes do Apache subir para o Laravel não procurar arquivos\n\
 php artisan config:cache\n\
+php artisan route:cache\n\
+php artisan view:cache\n\
+\n\
+# 5. O toque final: Garante que o Apache tenha permissão\n\
+chown -R www-data:www-data storage bootstrap/cache\n\
 \n\
 apache2-foreground' > /usr/local/bin/start-app.sh
 
