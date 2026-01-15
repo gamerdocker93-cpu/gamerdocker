@@ -27,27 +27,25 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# SCRIPT DE LIMPEZA ATÔMICA - RESOLUÇÃO FINAL
+# SCRIPT DE RESOLUÇÃO FINAL - LIMPEZA E RECONSTRUÇÃO
 RUN echo '#!/bin/sh\n\
-# 1. Morte súbita de caches antigos\n\
+# 1. Preparação de ambiente\n\
 rm -rf bootstrap/cache/*.php\n\
-rm -f .env\n\
 cp .env.example .env\n\
 \n\
-# 2. Limpeza de comandos (Garante que o Artisan esteja "fresco")\n\
+# 2. Limpeza de caches de comando\n\
 php artisan config:clear\n\
-php artisan cache:clear\n\
 \n\
-# 3. RECONSTRUÇÃO TOTAL DO BANCO (O ponto chave)\n\
-# O fresh apaga tudo e o seed recria. Isso mata o erro da "game_exclusives"\n\
+# 3. RECONSTRUÇÃO DO BANCO (Mata o erro da game_exclusives)\n\
+# O fresh garante que a tabela seja criada antes da tentativa de alteração\n\
 php artisan migrate:fresh --force --seed\n\
 \n\
-# 4. Otimização só DEPOIS do banco estar pronto\n\
+# 4. Otimização de Produção (Só após o banco estar pronto)\n\
 php artisan config:cache\n\
 php artisan route:cache\n\
 php artisan view:cache\n\
 \n\
-# 5. Permissão de escrita final\n\
+# 5. Permissões de pasta\n\
 chown -R www-data:www-data storage bootstrap/cache\n\
 \n\
 apache2-foreground' > /usr/local/bin/start-app.sh
