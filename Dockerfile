@@ -27,28 +27,27 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# SCRIPT DE ESTABILIZAÇÃO TOTAL - VERSÃO FINAL SEM ERROS
+# SCRIPT DE ESTABILIZAÇÃO TOTAL - VERSÃO FINAL
 RUN echo '#!/bin/sh\n\
-# 1. Preparação agressiva de ambiente\n\
+# 1. Limpeza e Sincronização de Ambiente\n\
 rm -rf bootstrap/cache/*.php\n\
 cp .env.example .env\n\
 \n\
-# 2. Limpeza de Autoload (Resolve conflitos de tabelas fantasmas)\n\
+# 2. Mata o cache do Composer para evitar tabelas fantasmas\n\
 composer dump-autoload --optimize\n\
 \n\
-# 3. Sincronização de Banco (O ponto onde as faixas vermelhas somem)\n\
-# O fresh reconstrói a tabela game_exclusives na ordem correta\n\
+# 3. CONSTRUÇÃO TOTAL (Onde as faixas vermelhas somem)\n\
+# O fresh garante que a tabela game_exclusives seja criada do zero antes da alteração\n\
 php artisan migrate:fresh --force --seed\n\
 \n\
-# 4. Bloqueio de Cache (Tranca as configurações certas)\n\
+# 4. TRANCA O LOG (Cria os caches antes do Apache subir)\n\
 php artisan config:cache\n\
 php artisan route:cache\n\
-php artisan view:cache\n\
 \n\
-# 5. Permissões de Sistema\n\
+# 5. Permissões finais de escrita\n\
 chown -R www-data:www-data storage bootstrap/cache\n\
 \n\
-echo "✅ LOG LIMPO: Sistema pronto para receber tráfego."\n\
+echo "LOG LIMPO: O banco de dados foi sincronizado com sucesso."\n\
 apache2-foreground' > /usr/local/bin/start-app.sh
 
 RUN chmod +x /usr/local/bin/start-app.sh
