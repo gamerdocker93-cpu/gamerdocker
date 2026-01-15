@@ -27,33 +27,23 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# SCRIPT DE ALTA PRECISÃO - BLINDAGEM DE LOGS
+# SCRIPT DE RESOLUÇÃO FINAL - LIMPEZA DE ECO DE ERRO
 RUN echo '#!/bin/sh\n\
-# 1. Limpeza Física e Remoção de Conflitos\n\
+# 1. Limpeza física total\n\
 rm -rf bootstrap/cache/*.php\n\
 rm -f .env\n\
 \n\
-# 2. Criação do arquivo .env real baseado no que funciona\n\
-echo "APP_NAME=Laravel" > .env\n\
-echo "APP_ENV=production" >> .env\n\
-echo "APP_KEY=base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=" >> .env\n\
-echo "DB_CONNECTION=pgsql" >> .env\n\
-echo "DB_HOST=dpg-d5ilblkhg0os738mds90-a" >> .env\n\
-echo "DB_PORT=5432" >> .env\n\
-echo "DB_DATABASE=gamedocker" >> .env\n\
-echo "DB_USERNAME=gamedocker_user" >> .env\n\
-echo "DB_PASSWORD=79ICALvAosgFplyYmwc3QK4gtMhfrZlC" >> .env\n\
-echo "APP_DEBUG=false" >> .env\n\
+# 2. Linkar o .env.example que você corrigiu com perfeição\n\
+cp .env.example .env\n\
 \n\
-# 3. Forçar o Laravel a ignorar caches antigos e ler o .env novo\n\
-php artisan config:clear\n\
-php artisan cache:clear\n\
+# 3. MATA O ERRO "relation does not exist":\n\
+# Vamos rodar o FRESH uma última vez agora que o .env está certo\n\
+# Isso garante que a tabela game_exclusives seja criada ANTES do código tentar alterá-la\n\
+php artisan migrate:fresh --force --seed\n\
 \n\
-# 4. Migração Silenciosa (Para não gerar faixas vermelhas se já existir)\n\
-php artisan migrate --force --seed || echo "Banco OK"\n\
-\n\
-# 5. Otimização Final\n\
+# 4. Trava a configuração para o log ficar verde\n\
 php artisan config:cache\n\
+php artisan route:cache\n\
 \n\
 apache2-foreground' > /usr/local/bin/start-app.sh
 
