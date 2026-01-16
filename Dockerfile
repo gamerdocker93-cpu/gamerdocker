@@ -46,19 +46,21 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# 7. Script de Inicialização Sênior (Limpando erros de Apache)
+# 7. Script de Inicialização Placa de Ouro
 RUN echo '#!/bin/sh\n\
-# 1. Configura a porta dinâmica do Nginx\n\
+# 1. Garante que a porta da Railway seja injetada na configuração do Nginx\n\
+# Usamos uma variável temporária para evitar erros de substituição\n\
 sed -i "s/\${PORT}/${PORT}/g" /etc/nginx/sites-available/default\n\
 \n\
-# 2. Inicia o PHP-FPM em segundo plano\n\
+# 2. Inicia o PHP-FPM em segundo plano (daemon)\n\
 php-fpm -D\n\
 \n\
-# 3. Inicia o Nginx em primeiro plano (Isso mantém o site "Live")\n\
+# 3. Inicia o Nginx em primeiro plano para manter o container vivo\n\
+# O redirecionamento de logs ajuda a ver erros do Nginx no painel da Railway\n\
 nginx -g "daemon off;"' > /usr/local/bin/start-app.sh \
     && chmod +x /usr/local/bin/start-app.sh
 
-# A Railway vai ignorar o EXPOSE e usar a variável $PORT automaticamente
+# A porta padrão interna é 80, mas a Railway define a pública via $PORT
 EXPOSE 80
 
 CMD ["/usr/local/bin/start-app.sh"]
