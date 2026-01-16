@@ -47,11 +47,14 @@ RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 # 7. Script de Inicialização Robusto
-# Ele substitui ${PORT} pela porta real que a Railway te der no momento do boot
 RUN echo '#!/bin/sh\n\
-PORT_VALUE=${PORT:-80}\n\
-sed -i "s/\${PORT}/${PORT_VALUE}/g" /etc/nginx/sites-available/default\n\
+# Substitui a variável no arquivo de config do Nginx\n\
+sed -i "s/\${PORT}/${PORT}/g" /etc/nginx/sites-available/default\n\
+\n\
+# Inicia o PHP-FPM em segundo plano\n\
 php-fpm -D\n\
+\n\
+# Inicia o Nginx em primeiro plano para o container não fechar\n\
 nginx -g "daemon off;"' > /usr/local/bin/start-app.sh \
     && chmod +x /usr/local/bin/start-app.sh
 
