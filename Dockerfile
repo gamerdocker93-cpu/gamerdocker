@@ -1,19 +1,19 @@
 FROM php:8.2-apache
 
-# 1. Instala extensões necessárias
+# 1. Instala apenas o necessário para o banco
 RUN apt-get update && apt-get install -y \
     libpq-dev libicu-dev libzip-dev zip unzip git postgresql-client \
     && docker-php-ext-install pdo_pgsql pgsql intl zip bcmath
 
-# 2. Mata o erro de MPM e ativa o rewrite
-RUN a2dismod mpm_event && a2enmod mpm_prefork && a2enmod rewrite
+# 2. Ativa o rewrite (Obrigatório para Laravel)
+RUN a2enmod rewrite
 
 WORKDIR /var/www/html
 
-# 3. COPIA OS ARQUIVOS (Isso resolve o erro do seu último print)
+# 3. COPIA OS ARQUIVOS (Isso resolve o erro de 'composer.json' não encontrado)
 COPY . .
 
-# 4. Configura a pasta public e porta da Railway
+# 4. Configura a pasta public e a porta dinâmica
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf \
     && echo "<Directory /var/www/html/public>\n\
@@ -30,4 +30,6 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev --ignore-pl
 RUN chown -R www-data:www-data /var/www/html && chmod -R 775 storage bootstrap/cache
 
 EXPOSE ${PORT}
+
+# 6. Inicia o Apache sem scripts extras
 CMD ["apache2-foreground"]
