@@ -1,16 +1,19 @@
 FROM php:8.2-fpm
 
 # ===============================
-# System deps
+# System dependencies
 # ===============================
 RUN apt-get update && apt-get install -y \
     nginx \
-    libpq-dev libicu-dev libzip-dev \
+    libpq-dev \
+    libicu-dev \
+    libzip-dev \
     zip unzip git \
-    libpng-dev libjpeg-dev libfreetype6-dev \
-    gettext-base \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo_pgsql intl zip bcmath gd \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    && docker-php-ext-configure gd --wit
+    && docker-php-ext-install pdo_pgsql
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /usr/share/nginx/html/*
@@ -18,10 +21,10 @@ RUN apt-get update && apt-get install -y \
 # ===============================
 # PHP-FPM config
 # ===============================
-RUN sed -i 's|listen = .*|listen = 127.0.0.1:9000|' /usr/local/etc/php-fpm.d/zz-docker.conf
+RUN sed -i 's|listen = .*|listen = 127.0
 
 # ===============================
-# App
+# Application
 # ===============================
 WORKDIR /var/www/html
 COPY . .
@@ -29,20 +32,20 @@ COPY . .
 # ===============================
 # Composer
 # ===============================
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+COPY --from=composer:2 /usr/bin/composer
+RUN composer install --no-dev --optimize
 
 # ===============================
-# File permissions Laravel
+# Laravel permissions
 # ===============================
-RUN chown -R www-data:www-data storage bootstrap/cache \
+RUN chown -R www-data:www-data storage b
  && chmod -R 775 storage bootstrap/cache
 
 # ===============================
-# Nginx template (uses $PORT)
+# NGINX CONFIG (FIXA)
 # ===============================
 RUN printf 'server {\n\
-    listen ${PORT};\n\
+    listen 8080;\n\
     server_name _;\n\
     root /var/www/html/public;\n\
     index index.php index.html;\n\
@@ -53,13 +56,13 @@ RUN printf 'server {\n\
 \n\
     location ~ \\.php$ {\n\
         include fastcgi_params;\n\
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;\n\
+        fastcgi_param SCRIPT_FILENAME $d
         fastcgi_pass 127.0.0.1:9000;\n\
     }\n\
-}\n' > /etc/nginx/conf.d/default.conf.template
+}\n' > /etc/nginx/conf.d/default.conf
 
 # ===============================
-# Startup FINAL (SIMPLES)
+# Startup script
 # ===============================
 RUN printf '#!/bin/sh\n\
 set -e\n\
