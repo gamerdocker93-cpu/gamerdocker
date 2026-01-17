@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     libpq-dev libicu-dev libzip-dev \
     zip unzip git \
     libpng-dev libjpeg-dev libfreetype6-dev \
+    gettext-base \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo_pgsql intl zip bcmath gd \
     && apt-get clean \
@@ -38,13 +39,13 @@ RUN chown -R www-data:www-data storage bootstrap/cache \
  && chmod -R 775 storage bootstrap/cache
 
 # ===============================
-# NGINX CONFIG (single file)
+# NGINX TEMPLATE (Railway PORT)
 # ===============================
 RUN printf 'server {\n\
-    listen 8080;\n\
+    listen ${PORT};\n\
     server_name _;\n\
     root /var/www/html/public;\n\
-    index index.php;\n\
+    index index.php index.html;\n\
 \n\
     location / {\n\
         try_files $uri $uri/ /index.php?$query_string;\n\
@@ -55,7 +56,7 @@ RUN printf 'server {\n\
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;\n\
         fastcgi_pass 127.0.0.1:9000;\n\
     }\n\
-}\n' > /etc/nginx/conf.d/default.conf
+}\n' > /etc/nginx/conf.d/default.conf.template
 
 # ===============================
 # Startup
@@ -63,7 +64,7 @@ RUN printf 'server {\n\
 RUN printf '#!/bin/sh\n\
 set -e\n\
 \n\
-sed -i \"s/listen 8080;/listen ${PORT};/\" /etc/nginx/conf.d/default.conf\n\
+envsubst \"\\$PORT\" < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf\n\
 \n\
 php artisan config:clear || true\n\
 php artisan cache:clear || true\n\
