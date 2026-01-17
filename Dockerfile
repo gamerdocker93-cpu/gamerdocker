@@ -64,15 +64,18 @@ RUN printf 'server {\n\
 RUN printf '#!/bin/sh\n\
 set -e\n\
 \n\
-# substitute PORT into config\n\
+# substitute PORT into nginx config\n\
 envsubst \"$PORT\" < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf\n\
 \n\
-# clear Laravel caches just in case\n\
+# clear Laravel caches\n\
 php artisan config:clear || true\n\
 php artisan cache:clear || true\n\
 php artisan route:clear || true\n\
 php artisan view:clear || true\n\
 \n\
-# start PHP-FPM then nginx
-php-fpm -D
-nginx -g "daemon off;"
+# start services\n\
+php-fpm -D\n\
+nginx -g \"daemon off;\"\n' > /start.sh \
+ && chmod +x /start.sh
+
+CMD ["sh", "/start.sh"]
