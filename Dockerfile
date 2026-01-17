@@ -40,7 +40,7 @@ RUN chown -R www-data:www-data storage bootstrap/cache \
 # Nginx config (CORRETO)
 # ===============================
 
-# Remove QUALQUER config default do nginx (evita conflito)
+# Remove qualquer config default do nginx
 RUN rm -f /etc/nginx/conf.d/*.conf
 
 # Cria a única config válida do site
