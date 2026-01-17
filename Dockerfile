@@ -37,10 +37,10 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction
 RUN chown -R www-data:www-data storage bootstrap/cache
 
 # ===============================
-# Template Nginx (PORT dinâmica)
+# Template Nginx (PORT dinâmica Railway)
 # ===============================
 RUN printf 'server {\n\
-    listen ${PORT};\n\
+    listen $PORT;\n\
     server_name _;\n\
     root /var/www/html/public;\n\
     index index.php;\n\
@@ -57,22 +57,21 @@ RUN printf 'server {\n\
 }\n' > /etc/nginx/conf.d/default.conf.template
 
 # ===============================
-# Script de inicialização
+# Script de inicialização (CORRETO)
 # ===============================
 RUN printf '#!/bin/sh\n\
 set -e\n\
 \n\
-envsubst "$PORT" < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf\n\
+echo \"PORT=$PORT\"\n\
 \n\
-php artisan config:clear || true\n\
-php artisan route:clear || true\n\
-php artisan view:clear || true\n\
+envsubst '\''$PORT'\'' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf\n\
 \n\
 php-fpm -D\n\
-nginx -g "daemon off;"\n' > /start.sh \
+nginx -g \"daemon off;\"\n' > /start.sh \
  && chmod +x /start.sh
 
 # ===============================
 # Start
 # ===============================
 CMD ["/start.sh"]
+
