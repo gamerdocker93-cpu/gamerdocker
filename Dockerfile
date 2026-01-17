@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     zip unzip git \
     libpng-dev libjpeg-dev libfreetype6-dev \
     gettext-base \
+    && rm -rf /usr/share/nginx/html/* \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo_pgsql intl zip bcmath gd \
     && apt-get clean \
@@ -38,7 +39,7 @@ RUN chown -R www-data:www-data storage bootstrap/cache \
  && chmod -R 775 storage bootstrap/cache
 
 # ===============================
-# NGINX (remove default)
+# NGINX (remove configs default)
 # ===============================
 RUN rm -f /etc/nginx/sites-enabled/default
 
@@ -49,14 +50,15 @@ RUN printf 'server {\n\
     listen ${PORT};\n\
     server_name _;\n\
     root /var/www/html/public;\n\
-    index index.php index.html;\n\
+    index index.php;\n\
 \n\
     location / {\n\
         try_files $uri $uri/ /index.php?$query_string;\n\
     }\n\
 \n\
     location ~ \\.php$ {\n\
-        include fastcgi.conf;\n\
+        include fastcgi_params;\n\
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;\n\
         fastcgi_pass 127.0.0.1:9000;\n\
     }\n\
 }\n' > /etc/nginx/conf.d/default.conf.template
@@ -79,4 +81,3 @@ nginx -g "daemon off;"\n' > /start.sh \
  && chmod +x /start.sh
 
 CMD ["/start.sh"]
-
