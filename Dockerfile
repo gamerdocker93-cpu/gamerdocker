@@ -77,4 +77,4 @@ php-fpm -D\n\
 exec nginx -g \"daemon off;\"\n' > /start.sh \
  && chmod +x /start.sh
 
-CMD [\"/start.sh\"]
+CMD sh /start.sh
