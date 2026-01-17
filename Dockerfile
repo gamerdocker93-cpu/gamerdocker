@@ -31,19 +31,26 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
 # ===============================
+# 🔎 TESTE 1 — autoload do Laravel
+# ===============================
+RUN php -r "require 'vendor/autoload.php'; echo 'autoload OK\n';"
+
+# ===============================
 # Laravel permissions
 # ===============================
 RUN chown -R www-data:www-data storage bootstrap/cache \
  && chmod -R 775 storage bootstrap/cache
 
 # ===============================
-# Nginx config (CORRETO)
+# 🔎 TESTE 2 — storage e logs
 # ===============================
+RUN ls -la storage && ls -la storage/logs || true
 
-# Remove qualquer config default do nginx
-RUN rm -f /etc/nginx/conf.d/*.conf
+# ===============================
+# Nginx config (ÚNICA e limpa)
+# ===============================
+RUN rm -f /etc/nginx/conf.d/*
 
-# Cria a única config válida do site
 RUN printf 'server {\n\
     listen 80;\n\
     server_name _;\n\
@@ -63,7 +70,7 @@ RUN printf 'server {\n\
 }\n' > /etc/nginx/conf.d/default.conf
 
 # ===============================
-# Startup script (CORRETO)
+# Startup script (CORRETO e simples)
 # ===============================
 RUN printf '#!/bin/sh\n\
 set -e\n\
@@ -74,7 +81,7 @@ php artisan route:clear || true\n\
 php artisan view:clear || true\n\
 \n\
 php-fpm -D\n\
-exec nginx -g '\''daemon off;'\''\n' > /start.sh \
+exec nginx -g \"daemon off;\"\n' > /start.sh \
  && chmod +x /start.sh
 
-CMD sh /start.sh
+CMD ["sh", "/start.sh"]
