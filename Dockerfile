@@ -33,18 +33,19 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
 # ===============================
-# Permissões Laravel (CRÍTICO)
+# Permissões Laravel
 # ===============================
 RUN chown -R www-data:www-data storage bootstrap/cache \
  && chmod -R 775 storage bootstrap/cache
 
 # ===============================
-# NGINX (remove configs default)
+# NGINX — remove default
 # ===============================
-RUN rm -f /etc/nginx/sites-enabled/default
+RUN rm -f /etc/nginx/sites-enabled/default \
+ && rm -f /etc/nginx/sites-available/default
 
 # ===============================
-# Template Nginx (Railway PORT)
+# NGINX SITE (Railway PORT)
 # ===============================
 RUN printf 'server {\n\
     listen ${PORT};\n\
@@ -61,7 +62,12 @@ RUN printf 'server {\n\
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;\n\
         fastcgi_pass 127.0.0.1:9000;\n\
     }\n\
-}\n' > /etc/nginx/conf.d/default.conf.template
+}\n' > /etc/nginx/sites-available/laravel.conf
+
+# ===============================
+# Enable site
+# ===============================
+RUN ln -s /etc/nginx/sites-available/laravel.conf /etc/nginx/sites-enabled/laravel.conf
 
 # ===============================
 # Start script
@@ -69,7 +75,7 @@ RUN printf 'server {\n\
 RUN printf '#!/bin/sh\n\
 set -e\n\
 \n\
-envsubst "\\$PORT" < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf\n\
+envsubst "\\$PORT" < /etc/nginx/sites-available/laravel.conf > /etc/nginx/sites-enabled/laravel.conf\n\
 \n\
 php artisan config:clear || true\n\
 php artisan cache:clear || true\n\
