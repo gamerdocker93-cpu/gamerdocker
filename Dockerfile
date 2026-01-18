@@ -41,7 +41,8 @@ RUN chown -R www-data:www-data storage bootstrap/cache \
 # ===============================
 RUN rm -f /etc/nginx/conf.d/*
 
-RUN echo 'server {
+RUN cat << 'EOF' > /etc/nginx/conf.d/default.conf
+server {
     listen 80 default_server;
     server_name _;
 
@@ -57,7 +58,8 @@ RUN echo 'server {
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         fastcgi_pass 127.0.0.1:9000;
     }
-}' > /etc/nginx/conf.d/default.conf
+}
+EOF
 
 # ===============================
 # Laravel ENV safety
