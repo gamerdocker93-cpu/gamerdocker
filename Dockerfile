@@ -37,13 +37,18 @@ RUN chown -R www-data:www-data storage bootstrap/cache \
  && chmod -R 775 storage bootstrap/cache
 
 # ===============================
-# Nginx config (ÚNICA, LIMPA)
+# NGINX — LIMPEZA TOTAL
 # ===============================
-RUN rm -f /etc/nginx/conf.d/*
+RUN rm -f /etc/nginx/conf.d/* \
+ && rm -f /etc/nginx/sites-enabled/* \
+ && rm -f /etc/nginx/sites-available/*
 
+# ===============================
+# NGINX — CONFIG ÚNICA
+# ===============================
 RUN cat << 'EOF' > /etc/nginx/conf.d/default.conf
 server {
-    listen 80 default_server;
+    listen 80;
     server_name _;
 
     root /var/www/html/public;
@@ -62,12 +67,6 @@ server {
 EOF
 
 # ===============================
-# Laravel ENV safety
-# ===============================
-ENV APP_ENV=production
-ENV LOG_CHANNEL=stderr
-
-# ===============================
-# Start services (FINAL)
+# START
 # ===============================
 CMD ["sh", "-c", "php artisan config:clear || true && php-fpm -F & nginx -g 'daemon off;'"]
