@@ -16,25 +16,21 @@ COPY --from=build-assets /app/public/build ./public/build
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-# ============================================================
-# FORÇANDO A CHAVE NO ARQUIVO DE CONFIGURAÇÃO VIA PHP
-# ============================================================
-RUN php -r "\$path = 'config/app.php'; \$content = file_get_contents(\$path); \$content = preg_replace(\"/'key' => .*,/\", \"'key' => 'base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=',\", \$content); file_put_contents(\$path, \$content);"
-
 RUN chown -R www-data:www-data storage bootstrap/cache && chmod -R 775 storage bootstrap/cache
 RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*
 
-RUN printf "server {\n listen 80;\n root /var/www/html/public;\n index index.php;\n location / {\n try_files \$uri \$uri/ /index.php?\$query_string;\n }\n location ~ \.php$ {\n include fastcgi_params;\n fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;\n fastcgi_pass 127.0.0.1:9000;\n }\n}\n" > /etc/nginx/conf.d/default.conf
+# Configuração do Nginx simplificada em uma linha para evitar erros de cópia
+RUN echo 'server { listen 80; root /var/www/html/public; index index.php; location / { try_files $uri $uri/ /index.php?$query_string; } location ~ \.php$ { include fastcgi_params; fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; fastcgi_pass 127.0.0.1:9000; } }' > /etc/nginx/conf.d/default.conf
 
-RUN echo '#!/bin/sh\n\
-sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf\n\
-# LIMPEZA TOTAL DE CACHE\n\
+# Script de inicialização ultra-robusto
+RUN printf "#!/bin/sh\n\
+sed -i \"s/listen 80;/listen \${PORT:-8080};/g\" /etc/nginx/conf.d/default.conf\n\
 rm -rf bootstrap/cache/*.php\n\
 php artisan config:clear\n\
-php artisan cache:clear\n\
-# Tenta rodar migrations\n\
-php artisan migrate --force || echo \"Migrations ignoradas\"\n\
-php-fpm -D && nginx -g \"daemon off;\"' > /usr/local/bin/start.sh && chmod +x /usr/local/bin/start.sh
+php artisan key:generate --force\n\
+php artisan migrate --force || echo \"Migrations ok\"\n\
+php-fpm -D\n\
+nginx -g \"daemon off;\"\n" > /usr/local/bin/start.sh && chmod +x /usr/local/bin/start.sh
 
 EXPOSE 8080
 CMD ["/usr/local/bin/start.sh"]
