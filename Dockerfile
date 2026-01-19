@@ -17,7 +17,7 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
 # ============================================================
-# FORÇANDO A CHAVE NO CÓDIGO-FONTE (NÍVEL SÊNIOR)
+# INJEÇÃO DIRETA: Sobrescreve a chave no arquivo físico
 # ============================================================
 RUN sed -i "s/'key' => .*,/'key' => 'base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=',/g" config/app.php
 RUN sed -i "s/'cipher' => .*,/'cipher' => 'AES-256-CBC',/g" config/app.php
@@ -26,7 +26,7 @@ RUN chown -R www-data:www-data storage bootstrap/cache && chmod -R 775 storage b
 RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*
 RUN echo 'server { listen 80; root /var/www/html/public; index index.php; location / { try_files $uri $uri/ /index.php?$query_string; } location ~ \.php$ { include fastcgi_params; fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; fastcgi_pass 127.0.0.1:9000; } }' > /etc/nginx/conf.d/default.conf
 
-# Script de inicialização: Limpa TUDO e Inicia
+# Script de inicialização
 RUN echo '#!/bin/sh' > /usr/local/bin/start.sh
 RUN echo 'sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf' >> /usr/local/bin/start.sh
 RUN echo 'rm -rf bootstrap/cache/*.php' >> /usr/local/bin/start.sh
