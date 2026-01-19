@@ -69,19 +69,21 @@ REAL_PORT=${PORT:-8080}\n\
 sed -i "s/listen 80;/listen $REAL_PORT;/g" /etc/nginx/conf.d/default.conf\n\
 sed -i "s/listen \[::\]:80;/listen [::]:$REAL_PORT;/g" /etc/nginx/conf.d/default.conf\n\
 \n\
-# 2. Garante que temos uma APP_KEY válida se a da variável falhar\n\
-if [ -z "$APP_KEY" ] || [ "$APP_KEY" = "base64:..." ]; then\n\
-    echo "Gerando nova APP_KEY..."\n\
+# 2. Limpeza FORÇADA de cache antes de qualquer coisa\n\
+rm -f storage/framework/cache/data/*\n\
+rm -f bootstrap/cache/*.php\n\
+\n\
+# 3. Garante uma APP_KEY válida\n\
+# Se não houver APP_KEY nas variáveis da Railway, geramos uma nova\n\
+if [ -z "$APP_KEY" ]; then\n\
     php artisan key:generate --force\n\
+else\n\
+    # Se houver, forçamos o Laravel a reconhecê-la limpando o config\n\
+    php artisan config:clear\n\
 fi\n\
 \n\
-# 3. Limpeza de caches\n\
-php artisan config:clear\n\
-php artisan cache:clear\n\
-\n\
 # 4. Migrations (Ignora erro se a coluna já existir)\n\
-echo "Tentando rodar migrations..."\n\
-php artisan migrate --force || echo "Aviso: Algumas migrations falharam (provavelmente colunas duplicadas), continuando..."\n\
+php artisan migrate --force || echo "Aviso: Migrations com colunas duplicadas, ignorando..."\n\
 \n\
 # 5. Inicia serviços\n\
 php-fpm -D\n\
