@@ -14,10 +14,12 @@ WORKDIR /var/www/html
 COPY . .
 
 # ============================================================
-# DESATIVANDO A SOBRESCRITA NO APPSERVICEPROVIDER
+# DESATIVANDO A SOBRESCRITA NO APPSERVICEPROVIDER (VERSÃO SÊNIOR)
 # ============================================================
-RUN sed -i "s/Config::set('app.key',/\/\/ Config::set('app.key',/g" app/Providers/AppServiceProvider.php
-RUN sed -i "s/Config::set('app.cipher',/\/\/ Config::set('app.cipher',/g" app/Providers/AppServiceProvider.php
+# Comenta qualquer linha que comece com Config::set('app.key' ou 'app.cipher' ou 'jwt.secret'
+RUN sed -i "s/Config::set('app.key'/\/\/ Config::set('app.key'/g" app/Providers/AppServiceProvider.php
+RUN sed -i "s/Config::set('app.cipher'/\/\/ Config::set('app.cipher'/g" app/Providers/AppServiceProvider.php
+RUN sed -i "s/Config::set('jwt.secret'/\/\/ Config::set('jwt.secret'/g" app/Providers/AppServiceProvider.php
 
 # Garante a chave correta no config/app.php
 RUN sed -i "s/'key' => .*,/'key' => 'base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=',/g" config/app.php
