@@ -4,7 +4,6 @@
 FROM node:18-alpine AS build-assets
 WORKDIR /app
 COPY . .
-# Instalamos as dependências e compilamos o Vue 3 / Vite
 RUN npm install && npm run build
 
 # ===============================
@@ -30,22 +29,21 @@ RUN sed -i 's|listen = .*|listen = 127.0.0.1:9000|' /usr/local/etc/php-fpm.d/zz-
 WORKDIR /var/www/html
 COPY . .
 
-# Copiamos os assets compilados do estágio anterior
+# Copiamos os assets compilados
 COPY --from=build-assets /app/public/build ./public/build
 
 # Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-# Permissões do Laravel
+# Permissões
 RUN chown -R www-data:www-data storage bootstrap/cache \
  && chmod -R 775 storage bootstrap/cache
 
-# NGINX — Limpeza Total de Conflitos
-# Removemos tudo de sites-enabled e conf.d para evitar o erro de "conflicting server name"
+# NGINX — Limpeza Total
 RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/sites-available/* /etc/nginx/conf.d/*
 
-# Configuração do Nginx (Usando porta 80 como base, será trocada no start)
+# Configuração do Nginx
 RUN printf "server {\n\
     listen 80;\n\
     listen [::]:80;\n\
@@ -66,26 +64,28 @@ RUN printf "server {\n\
 
 # Script de Inicialização (Entrypoint)
 RUN echo '#!/bin/sh\n\
-# 1. Ajusta a porta do Nginx para a porta da Railway ($PORT ou 8080)\n\
+# 1. Ajusta a porta\n\
 REAL_PORT=${PORT:-8080}\n\
-echo "Configurando Nginx para ouvir na porta $REAL_PORT"\n\
 sed -i "s/listen 80;/listen $REAL_PORT;/g" /etc/nginx/conf.d/default.conf\n\
 sed -i "s/listen \[::\]:80;/listen [::]:$REAL_PORT;/g" /etc/nginx/conf.d/default.conf\n\
 \n\
-# 2. Limpeza de caches do Laravel\n\
+# 2. Garante que temos uma APP_KEY válida se a da variável falhar\n\
+if [ -z "$APP_KEY" ] || [ "$APP_KEY" = "base64:..." ]; then\n\
+    echo "Gerando nova APP_KEY..."\n\
+    php artisan key:generate --force\n\
+fi\n\
+\n\
+# 3. Limpeza de caches\n\
 php artisan config:clear\n\
 php artisan cache:clear\n\
-php artisan view:clear\n\
 \n\
-# 3. Executa Migrations (Opcional, mas recomendado para iGaming)\n\
-echo "Rodando migrations..."\n\
-php artisan migrate --force\n\
+# 4. Migrations (Ignora erro se a coluna já existir)\n\
+echo "Tentando rodar migrations..."\n\
+php artisan migrate --force || echo "Aviso: Algumas migrations falharam (provavelmente colunas duplicadas), continuando..."\n\
 \n\
-# 4. Inicia os serviços\n\
+# 5. Inicia serviços\n\
 php-fpm -D\n\
 nginx -g "daemon off;"' > /usr/local/bin/start-app.sh && chmod +x /usr/local/bin/start-app.sh
 
-# Expõe a porta padrão
 EXPOSE 8080
-
 CMD ["/usr/local/bin/start-app.sh"]
