@@ -14,12 +14,12 @@ WORKDIR /var/www/html
 COPY . .
 
 # ============================================================
-# OPERAÇÃO DE GUERRA: Localiza e remove a chave fixa no código
+# DESATIVANDO A SOBRESCRITA NO APPSERVICEPROVIDER
 # ============================================================
-RUN grep -r "9687f5e34b29d5ad5f955e36d5854" . && \
-    find . -type f -name "*.php" -exec sed -i "s/9687f5e34b29d5ad5f955e36d5854/uS68On6HInL6p9G6nS8z2mB1vC4xR7zN/g" {} + || echo "Chave não encontrada em arquivos físicos"
+RUN sed -i "s/Config::set('app.key',/\/\/ Config::set('app.key',/g" app/Providers/AppServiceProvider.php
+RUN sed -i "s/Config::set('app.cipher',/\/\/ Config::set('app.cipher',/g" app/Providers/AppServiceProvider.php
 
-# Força a configuração correta no config/app.php
+# Garante a chave correta no config/app.php
 RUN sed -i "s/'key' => .*,/'key' => 'base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=',/g" config/app.php
 RUN sed -i "s/'cipher' => .*,/'cipher' => 'AES-256-CBC',/g" config/app.php
 
