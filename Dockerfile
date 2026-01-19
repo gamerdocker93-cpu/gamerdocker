@@ -14,21 +14,14 @@ WORKDIR /var/www/html
 COPY . .
 
 # ============================================================
-# DESATIVANDO A SOBRESCRITA NO APPSERVICEPROVIDER (VERSÃO SÊNIOR)
+# LIMPEZA NUCLEAR: Deleta caches que vieram do GitHub
 # ============================================================
-# Comenta qualquer linha que comece com Config::set('app.key' ou 'app.cipher' ou 'jwt.secret'
-RUN sed -i "s/Config::set('app.key'/\/\/ Config::set('app.key'/g" app/Providers/AppServiceProvider.php
-RUN sed -i "s/Config::set('app.cipher'/\/\/ Config::set('app.cipher'/g" app/Providers/AppServiceProvider.php
-RUN sed -i "s/Config::set('jwt.secret'/\/\/ Config::set('jwt.secret'/g" app/Providers/AppServiceProvider.php
+RUN rm -rf bootstrap/cache/*.php
+RUN rm -rf storage/framework/cache/data/*
+RUN rm -rf storage/framework/views/*.php
 
-# Garante a chave correta no config/app.php
-RUN sed -i "s/'key' => .*,/'key' => 'base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=',/g" config/app.php
-RUN sed -i "s/'cipher' => .*,/'cipher' => 'AES-256-CBC',/g" config/app.php
-
-RUN rm -rf bootstrap/cache/*.php storage/framework/cache/data/*
-COPY --from=build-assets /app/public/build ./public/build
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+# Injeta a chave diretamente no arquivo de configuração, removendo qualquer valor antigo
+RUN php -r "\$c = file_get_contents('config/app.php'); \$c = preg_replace(\"/'key' => .*,/\", \"'key' => 'base64:uS68On6HInL6p9G6nS8z2mB1vC4xR7zN0jK3lM6pQ9w=',\", \$c); \$c = preg_replace(\"/'cipher' => .*,/\", \"'cipher' => 'AES-256-CBC',\", \$c); file_put_contents('config/app.php', \$c);"
 
 RUN chown -R www-data:www-data storage bootstrap/cache && chmod -R 775 storage bootstrap/cache
 RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*
@@ -37,7 +30,8 @@ RUN echo 'server { listen 80; root /var/www/html/public; index index.php; locati
 # Script de inicialização
 RUN echo '#!/bin/sh' > /usr/local/bin/start.sh
 RUN echo 'sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf' >> /usr/local/bin/start.sh
-RUN echo 'rm -rf bootstrap/cache/*.php' >> /usr/local/bin/start.sh
+# Garante que o cache seja deletado NO MOMENTO do boot também
+RUN echo 'rm -f bootstrap/cache/config.php' >> /usr/local/bin/start.sh
 RUN echo 'php artisan config:clear' >> /usr/local/bin/start.sh
 RUN echo 'php artisan migrate --force > /dev/null 2>&1' >> /usr/local/bin/start.sh
 RUN echo 'php-fpm -D' >> /usr/local/bin/start.sh
