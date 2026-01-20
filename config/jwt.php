@@ -1,19 +1,19 @@
 <?php
 
-/*
- * This file is part of jwt-auth.
- *
- * (c) Sean Tymon <tymon148@gmail.com>
- *
- * For the full copyright and license information, please view the LICENSE
- * file that was distributed with this source code.
- */
-
 return [
 
     /*
     |--------------------------------------------------------------------------
     | JWT Authentication Secret
+    |--------------------------------------------------------------------------
+    | Blindagem: Valor chumbado para evitar o erro "Secret is not set"
+    */
+
+    'secret' => env('JWT_SECRET', 'OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ='),
+
+    /*
+    |--------------------------------------------------------------------------
+    | JWT Authentication Keys
     |--------------------------------------------------------------------------
     |
     | Don't forget to set this in your .env file, as it will be used to sign
