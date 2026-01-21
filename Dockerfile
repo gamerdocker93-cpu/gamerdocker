@@ -18,8 +18,7 @@ RUN rm -rf bootstrap/cache/*.php storage/framework/cache/data/*
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --optimize-autoloader --ignore-platform-reqs --no-scripts
 
-# Injeção de chaves no bootstrap para garantir o Cipher
-RUN sed -i "s/<?php/<?php\nputenv('APP_KEY=base64:OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ=');\nputenv('JWT_SECRET=OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ=');/g" bootstrap/app.php
+# REMOVEMOS A INJEÇÃO NO BOOTSTRAP, AGORA A CHAVE ESTÁ NO INDEX.PHP
 
 COPY --from=build-assets /app/public/build ./public/build
 RUN chown -R www-data:www-data storage bootstrap/cache && chmod -R 775 storage bootstrap/cache
@@ -29,10 +28,9 @@ RUN echo 'server { listen 80; root /var/www/html/public; index index.php; locati
 # Script de inicialização robusto
 RUN echo '#!/bin/sh' > /usr/local/bin/start.sh
 RUN echo 'sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf' >> /usr/local/bin/start.sh
-# Limpa caches para garantir que ele leia as variáveis da Railway
 RUN echo 'php artisan config:clear' >> /usr/local/bin/start.sh
 RUN echo 'php artisan cache:clear' >> /usr/local/bin/start.sh
-# Tenta rodar a migração, mas não trava se falhar
+RUN echo 'php artisan package:discover --ansi' >> /usr/local/bin/start.sh
 RUN echo 'php artisan migrate --force || echo "Aguardando DB..."' >> /usr/local/bin/start.sh
 RUN echo 'php-fpm -D' >> /usr/local/bin/start.sh
 RUN echo 'nginx -g "daemon off;"' >> /usr/local/bin/start.sh
