@@ -5,7 +5,7 @@ use Illuminate\Support\Str;
 return [
 
     // Alinhado com DB_CONNECTION=pgsql
-    'default' => env('DB_CONNECTION', 'pgsql'),
+    'default' => env('DB_CONNECTION', 'mysql'),
 
     'connections' => [
 
