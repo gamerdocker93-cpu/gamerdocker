@@ -4,42 +4,37 @@ use Illuminate\Support\Str;
 
 return [
 
-    // Alinhado com DB_CONNECTION=pgsql
+    // O Laravel agora usará o MySQL como conexão principal
     'default' => env('DB_CONNECTION', 'mysql'),
 
     'connections' => [
 
-        // Bloco Postgres - O Coração do seu Deploy no Railway
-        'pgsql' => [
-            'driver' => 'pgsql',
-            'url' => env('DATABASE_URL'),
-            'host' => env('DB_HOST', 'postgres.railway.internal'), // Fallback para o host interno
-            'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_DATABASE', 'railway'), // Fallback para o nome padrão do Railway
-            'username' => env('DB_USERNAME', 'postgres'),
-            'password' => env('DB_PASSWORD', 'hXwHyEvmzTPGGvSaDqwZTeEwAgSJzGLT'),
-            'charset' => 'utf8',
-            'prefix' => '',
-            'prefix_indexes' => true,
-            'search_path' => 'public',
-            'sslmode' => 'prefer',
-        ],
-
-        // Mantive o MySQL por segurança, mas o Laravel ignorará ele
         'mysql' => [
             'driver' => 'mysql',
             'url' => env('DATABASE_URL'),
-            'host' => env('DB_HOST', '127.0.0.1'),
+            // BLINDAGEM: Se o .env falhar, ele tenta os dados do seu MySQL Railway
+            'host' => env('DB_HOST', 'yamabiko.proxy.rlwy.net'), 
             'port' => env('DB_PORT', '3306'),
-            'database' => env('DB_DATABASE', 'forge'),
-            'username' => env('DB_USERNAME', 'forge'),
-            'password' => env('DB_PASSWORD', ''),
+            'database' => env('DB_DATABASE', 'railway'), 
+            'username' => env('DB_USERNAME', 'root'),
+            'password' => env('DB_PASSWORD', 'hXwHyEvmzTPGGvSaDqwZTeEwAgSJzGLT'), // Use a senha do MySQL aqui
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => false,
             'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
+        // Deixamos o pgsql vazio/padrão, pois não será usado
+        'pgsql' => [
+            'driver' => 'pgsql',
+            'host' => '127.0.0.1',
+            'database' => 'forge',
+            // ... restante padrão
         ],
     ],
 
@@ -51,6 +46,12 @@ return [
             'cluster' => env('REDIS_CLUSTER', 'redis'),
             'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'ViperPro'), '_').'_database_'),
         ],
-        // ... restante do bloco redis se mantém igual
+        'default' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'password' => env('REDIS_PASSWORD', null),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_DB', '0'),
+        ],
     ],
 ];
