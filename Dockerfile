@@ -14,19 +14,19 @@ WORKDIR /var/www/html
 COPY . .
 
 # ============================================================
-# VARREDURA RECURSIVA TOTAL (NÃO VAI SOBRAR NADA)
+# BUSCA DETETIVE: ONDE ESTÁ O AES-128-CBC?
 # ============================================================
-# 1. Forçamos a troca de AES-128 para AES-256 em TODOS os arquivos do projeto (.php, .env, .example)
-RUN find . -type f -name "*.php" -exec sed -i 's/AES-128-CBC/AES-256-CBC/g' {} +
-RUN find . -type f -name ".env*" -exec sed -i 's/AES-128-CBC/AES-256-CBC/g' {} +
+# Este comando vai listar no log do build todos os arquivos que mencionam a cifra errada
+RUN echo "--- BUSCANDO ARQUIVOS COM AES-128-CBC ---" && \
+    grep -r "AES-128-CBC" . || echo "Nenhum arquivo encontrado com AES-128-CBC"
 
-# 2. Forçamos a APP_KEY diretamente no config/app.php (Substituição agressiva)
+# Agora aplicamos a correção em todos eles
+RUN find . -type f -name "*.php" -exec sed -i 's/AES-128-CBC/AES-256-CBC/g' {} +
+
+# Forçamos a chave no config/app.php
 RUN sed -i "s/'key' => .*/'key' => 'base64:OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ=',/g" config/app.php
 
-# 3. Deletamos fisicamente qualquer cache que possa ter vindo do GitHub
 RUN rm -rf bootstrap/cache/*.php storage/framework/cache/data/*
-
-# Instalação limpa
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --no-scripts --ignore-platform-reqs
 
@@ -36,10 +36,11 @@ RUN chown -R www-data:www-data /var/www/html && chmod -R 775 storage bootstrap/c
 RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*
 RUN echo 'server { listen 80; root /var/www/html/public; index index.php; location / { try_files $uri $uri/ /index.php?$query_string; } location ~ \.php$ { include fastcgi_params; fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; fastcgi_pass 127.0.0.1:9000; } }' > /etc/nginx/conf.d/default.conf
 
-# Script de inicialização (Limpeza de segurança no boot)
+# Script de inicialização (Também busca no runtime)
 RUN echo '#!/bin/sh' > /usr/local/bin/start.sh
+RUN echo 'echo "--- BUSCA EM TEMPO DE EXECUÇÃO ---"' >> /usr/local/bin/start.sh
+RUN echo 'grep -r "AES-128-CBC" config/ bootstrap/ app/ || echo "Limpo no runtime"' >> /usr/local/bin/start.sh
 RUN echo 'sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf' >> /usr/local/bin/start.sh
-RUN echo 'rm -f bootstrap/cache/config.php' >> /usr/local/bin/start.sh
 RUN echo 'php artisan config:clear' >> /usr/local/bin/start.sh
 RUN echo 'php artisan migrate --force > /dev/null 2>&1 || echo "DB OK"' >> /usr/local/bin/start.sh
 RUN echo 'php-fpm -D' >> /usr/local/bin/start.sh
