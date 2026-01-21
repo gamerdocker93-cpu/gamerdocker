@@ -2,49 +2,22 @@
 
 return [
 
-    /*
-    |--------------------------------------------------------------------------
-    | Application Name & Environment
-    |--------------------------------------------------------------------------
-    | Alinhado com suas variáveis: APP_NAME=ViperPro e APP_ENV=production
-    */
     'name' => env('APP_NAME', 'ViperPro'),
     'env' => env('APP_ENV', 'production'),
-
-    /*
-    |--------------------------------------------------------------------------
-    | Application Debug Mode
-    |--------------------------------------------------------------------------
-    | Forçamos true como padrão enquanto estamos ajustando o deploy
-    */
     'debug' => (bool) env('APP_DEBUG', true),
-
-    /*
-    |--------------------------------------------------------------------------
-    | Application URL
-    |--------------------------------------------------------------------------
-    | Prioriza a variável do Railway. Se não existir, usa o padrão seguro.
-    */
     'url' => env('APP_URL', 'http://localhost'),
-
     'asset_url' => env('ASSET_URL', null),
-    'timezone' => 'America/Sao_Paulo', // Sugestão: Ajustado para horário de Brasília
-    'locale' => 'pt_BR',               // Sugestão: Ajustado para Português
+    'timezone' => 'America/Sao_Paulo',
+    'locale' => 'pt_BR',
     'fallback_locale' => 'en',
     'faker_locale' => 'pt_BR',
-
-    /*
-    |--------------------------------------------------------------------------
-    | Encryption Key
-    |--------------------------------------------------------------------------
-    | BLINDAGEM: Se o env falhar, usamos a sua chave real alinhada
-    */
     'key' => env('APP_KEY', 'base64:OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ='),
     'cipher' => 'AES-256-CBC',
 
-    /*
-    | O restante do arquivo (Providers e Aliases) está correto e não gera conflito.
-    */
+    'providers' => [
+        /*
+         * Laravel Framework Service Providers...
+         */
         Illuminate\Auth\AuthServiceProvider::class,
         Illuminate\Broadcasting\BroadcastServiceProvider::class,
         Illuminate\Bus\BusServiceProvider::class,
@@ -69,17 +42,15 @@ return [
         Illuminate\View\ViewServiceProvider::class,
 
         /*
-         * Application Service Providers... (CORRIGIDOS)
+         * Application Service Providers...
          */
         App\Providers\AppServiceProvider::class,
         App\Providers\AuthServiceProvider::class,
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
-
     ],
 
     'aliases' => [
-
         'App' => Illuminate\Support\Facades\App::class,
         'Arr' => Illuminate\Support\Arr::class,
         'Artisan' => Illuminate\Support\Facades\Artisan::class,
@@ -118,11 +89,6 @@ return [
         'URL' => Illuminate\Support\Facades\URL::class,
         'Validator' => Illuminate\Support\Facades\Validator::class,
         'View' => Illuminate\Support\Facades\View::class,
-
     ],
 
 ];
-
-
-
-
