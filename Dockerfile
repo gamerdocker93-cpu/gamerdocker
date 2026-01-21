@@ -14,22 +14,20 @@ WORKDIR /var/www/html
 COPY . .
 
 # ============================================================
-# LIMPEZA ATÔMICA E SOBREPOSIÇÃO DE CONFIGURAÇÃO
+# CORREÇÃO CIRÚRGICA DE CIPHER E KEY
 # ============================================================
-# 1. Removemos QUALQUER arquivo de cache que possa existir
-RUN rm -rf bootstrap/cache/*.php storage/framework/cache/data/* storage/framework/views/*.php storage/framework/sessions/*
+# 1. Forçamos o Cipher para AES-256-CBC (Obrigatório para chaves de 32 bytes)
+RUN sed -i "s/'cipher' => 'AES-128-CBC'/'cipher' => 'AES-256-CBC'/g" config/app.php
+RUN sed -i "s/'cipher' => env('APP_CIPHER', 'AES-128-CBC')/'cipher' => 'AES-256-CBC'/g" config/app.php
 
-# 2. Forçamos a criação de um .env fixo dentro da imagem (Última instância)
-RUN echo "APP_KEY=base64:OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ=" > .env && \
-    echo "APP_CIPHER=AES-256-CBC" >> .env && \
-    echo "JWT_SECRET=OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ=" >> .env && \
-    echo "DB_CONNECTION=mysql" >> .env
+# 2. Escrevemos a chave diretamente no arquivo para não depender de .env
+RUN sed -i "s|'key' => env('APP_KEY')|'key' => 'base64:OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ='|g" config/app.php
 
-# 3. Substituição bruta nos arquivos de config
-RUN sed -i "s|'key' => .*|'key' => 'base64:OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ=',|g" config/app.php && \
-    sed -i "s|'cipher' => .*|'cipher' => 'AES-256-CBC',|g" config/app.php
+# 3. Forçamos o JWT_SECRET no config/jwt.php
+RUN sed -i "s|'secret' => env('JWT_SECRET')|'secret' => 'OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ='|g" config/jwt.php
 
-# Instalação sem scripts para não gerar cache prematuro
+# Limpeza e instalação
+RUN rm -rf bootstrap/cache/*.php storage/framework/cache/data/*
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --optimize-autoloader --ignore-platform-reqs --no-scripts
 
@@ -38,12 +36,10 @@ RUN chown -R www-data:www-data storage bootstrap/cache && chmod -R 775 storage b
 RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*
 RUN echo 'server { listen 80; root /var/www/html/public; index index.php; location / { try_files $uri $uri/ /index.php?$query_string; } location ~ \.php$ { include fastcgi_params; fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; fastcgi_pass 127.0.0.1:9000; } }' > /etc/nginx/conf.d/default.conf
 
-# Script de inicialização que limpa TUDO no boot
+# Script de inicialização
 RUN echo '#!/bin/sh' > /usr/local/bin/start.sh
 RUN echo 'sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf' >> /usr/local/bin/start.sh
 RUN echo 'php artisan config:clear' >> /usr/local/bin/start.sh
-RUN echo 'php artisan cache:clear' >> /usr/local/bin/start.sh
-RUN echo 'php artisan view:clear' >> /usr/local/bin/start.sh
 RUN echo 'php artisan migrate --force > /dev/null 2>&1 || echo "DB OK"' >> /usr/local/bin/start.sh
 RUN echo 'php-fpm -D' >> /usr/local/bin/start.sh
 RUN echo 'nginx -g "daemon off;"' >> /usr/local/bin/start.sh
