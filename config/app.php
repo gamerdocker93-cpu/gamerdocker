@@ -23,9 +23,9 @@ return [
     |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
-    | Alinhado com seu domínio do Railway
+    | Prioriza a variável do Railway. Se não existir, usa o padrão seguro.
     */
-    'url' => env('APP_URL', 'https://viperpro-production-d3d8.up.railway.app'),
+    'url' => env('APP_URL', 'http://localhost'),
 
     'asset_url' => env('ASSET_URL', null),
     'timezone' => 'America/Sao_Paulo', // Sugestão: Ajustado para horário de Brasília
