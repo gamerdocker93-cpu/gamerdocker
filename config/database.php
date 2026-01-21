@@ -1,33 +1,23 @@
-<?php
-
-use Illuminate\Support\Str;
-
-return [
-
-    // O Laravel agora usará o MySQL como conexão principal
     'default' => env('DB_CONNECTION', 'mysql'),
 
     'connections' => [
-
         'mysql' => [
             'driver' => 'mysql',
             'url' => env('DATABASE_URL'),
-            // BLINDAGEM: Se o .env falhar, ele tenta os dados do seu MySQL Railway
-            'host' => env('DB_HOST', 'yamabiko.proxy.rlwy.net'), 
+            'host' => env('DB_HOST', 'mysql.railway.internal'),
             'port' => env('DB_PORT', '3306'),
-            'database' => env('DB_DATABASE', 'railway'), 
+            'database' => env('DB_DATABASE', 'railway'),
             'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', 'hXwHyEvmzTPGGvSaDqwZTeEwAgSJzGLT'), // Use a senha do MySQL aqui
+            'password' => env('DB_PASSWORD', 'oWcauyfgQnWcvkmHnVfTGpgofqAOljkn'),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => false,
             'engine' => null,
-            'options' => extension_loaded('pdo_mysql') ? array_filter([
-                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
-            ]) : [],
         ],
+        // ... pode manter o bloco pgsql padrão abaixo, o Laravel vai ignorá-lo.
+    ],
 
         // Deixamos o pgsql vazio/padrão, pois não será usado
         'pgsql' => [
