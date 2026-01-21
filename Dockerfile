@@ -1,7 +1,6 @@
 FROM node:18-alpine AS build-assets
 WORKDIR /app
 COPY . .
-# Garantimos que o build do Vite seja limpo
 RUN npm install && npm run build
 
 FROM php:8.2-fpm
@@ -15,24 +14,26 @@ WORKDIR /var/www/html
 COPY . .
 
 # ============================================================
-# FORÇANDO CONFIGURAÇÕES DIRETAMENTE NO BUILD
+# BUSCA E DESTRUIÇÃO DE CONFIGURAÇÕES ERRADAS
 # ============================================================
-# Forçamos o Cipher e a Key no config/app.php (mesmo que você não mude no GitHub, o Docker muda aqui)
-RUN sed -i "s/'cipher' => .*/'cipher' => 'AES-256-CBC',/g" config/app.php
+# 1. Procura em TODOS os arquivos por AES-128-CBC e troca por AES-256-CBC
+RUN grep -rl "AES-128-CBC" . | xargs sed -i 's/AES-128-CBC/AES-256-CBC/g'
+
+# 2. Força a APP_KEY em todos os lugares possíveis (config e .env)
 RUN sed -i "s|'key' => env('APP_KEY')|'key' => 'base64:OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ='|g" config/app.php
+RUN echo "APP_KEY=base64:OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ=" > .env
+RUN echo "APP_CIPHER=AES-256-CBC" >> .env
+
+# 3. Garante que o JWT_SECRET também esteja correto
 RUN sed -i "s|'secret' => env('JWT_SECRET')|'secret' => 'OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ='|g" config/jwt.php
 
-# Limpeza física total
-RUN rm -rf bootstrap/cache/*.php storage/framework/cache/data/* storage/framework/views/*.php
-
+# Limpeza e instalação
+RUN rm -rf bootstrap/cache/*.php storage/framework/cache/data/*
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --optimize-autoloader --ignore-platform-reqs --no-scripts
 
-# Copiamos os assets compilados do estágio anterior
 COPY --from=build-assets /app/public/build ./public/build
-
-# PERMISSÕES TOTAIS (Crucial para resolver Tela Branca)
-RUN chown -R www-data:www-data /var/www/html && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+RUN chown -R www-data:www-data /var/www/html && chmod -R 775 storage bootstrap/cache
 
 RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*
 RUN echo 'server { listen 80; root /var/www/html/public; index index.php; location / { try_files $uri $uri/ /index.php?$query_string; } location ~ \.php$ { include fastcgi_params; fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; fastcgi_pass 127.0.0.1:9000; } }' > /etc/nginx/conf.d/default.conf
@@ -40,10 +41,7 @@ RUN echo 'server { listen 80; root /var/www/html/public; index index.php; locati
 # Script de inicialização
 RUN echo '#!/bin/sh' > /usr/local/bin/start.sh
 RUN echo 'sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf' >> /usr/local/bin/start.sh
-# Limpa TUDO no boot para não sobrar lixo
 RUN echo 'php artisan config:clear' >> /usr/local/bin/start.sh
-RUN echo 'php artisan cache:clear' >> /usr/local/bin/start.sh
-RUN echo 'php artisan view:clear' >> /usr/local/bin/start.sh
 RUN echo 'php artisan migrate --force > /dev/null 2>&1 || echo "DB OK"' >> /usr/local/bin/start.sh
 RUN echo 'php-fpm -D' >> /usr/local/bin/start.sh
 RUN echo 'nginx -g "daemon off;"' >> /usr/local/bin/start.sh
