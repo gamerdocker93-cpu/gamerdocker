@@ -13,25 +13,31 @@ RUN sed -i 's|listen = .*|listen = 127.0.0.1:9000|' /usr/local/etc/php-fpm.d/zz-
 WORKDIR /var/www/html
 COPY . .
 
-# Instalação limpa do Composer sem rodar scripts que quebram o build
+# ============================================================
+# ATAQUE DIRETO AOS ARQUIVOS DE CONFIGURAÇÃO (DNA DO LARAVEL)
+# ============================================================
+# 1. Forçamos a APP_KEY e o CIPHER diretamente no config/app.php
+RUN sed -i "s|'key' => env('APP_KEY')|'key' => 'base64:OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ='|g" config/app.php
+RUN sed -i "s|'cipher' => 'AES-128-CBC'|'cipher' => 'AES-256-CBC'|g" config/app.php
+
+# 2. Forçamos o JWT_SECRET diretamente no config/jwt.php
+RUN if [ -f config/jwt.php ]; then sed -i "s|'secret' => env('JWT_SECRET')|'secret' => 'OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ='|g" config/jwt.php; fi
+
+# 3. Limpeza total e instalação sem scripts
 RUN rm -rf bootstrap/cache/*.php storage/framework/cache/data/*
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --optimize-autoloader --ignore-platform-reqs --no-scripts
-
-# REMOVEMOS A INJEÇÃO NO BOOTSTRAP, AGORA A CHAVE ESTÁ NO INDEX.PHP
 
 COPY --from=build-assets /app/public/build ./public/build
 RUN chown -R www-data:www-data storage bootstrap/cache && chmod -R 775 storage bootstrap/cache
 RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*
 RUN echo 'server { listen 80; root /var/www/html/public; index index.php; location / { try_files $uri $uri/ /index.php?$query_string; } location ~ \.php$ { include fastcgi_params; fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; fastcgi_pass 127.0.0.1:9000; } }' > /etc/nginx/conf.d/default.conf
 
-# Script de inicialização robusto
+# Script de inicialização
 RUN echo '#!/bin/sh' > /usr/local/bin/start.sh
 RUN echo 'sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf' >> /usr/local/bin/start.sh
 RUN echo 'php artisan config:clear' >> /usr/local/bin/start.sh
-RUN echo 'php artisan cache:clear' >> /usr/local/bin/start.sh
-RUN echo 'php artisan package:discover --ansi' >> /usr/local/bin/start.sh
-RUN echo 'php artisan migrate --force || echo "Aguardando DB..."' >> /usr/local/bin/start.sh
+RUN echo 'php artisan migrate --force || echo "DB OK"' >> /usr/local/bin/start.sh
 RUN echo 'php-fpm -D' >> /usr/local/bin/start.sh
 RUN echo 'nginx -g "daemon off;"' >> /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
