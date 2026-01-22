@@ -39,37 +39,23 @@ COPY . .
 
 RUN composer dump-autoload --optimize
 
-RUN echo "=============================================" && \
-    echo "INVESTIGACAO DETETIVE - ANTES DAS CORRECOES" && \
-    echo "=============================================" && \
+RUN echo "=== INVESTIGACAO BUILD ===" && \
+    echo "Verificando se existe .env:" && \
+    ls -la .env 2>/dev/null || echo ".env NAO EXISTE" && \
     echo "" && \
-    echo "1. CONTEUDO DO config/app.php (linhas com cipher):" && \
-    grep -n "cipher" config/app.php && \
+    echo "Verificando bootstrap/cache:" && \
+    ls -la bootstrap/cache/ && \
     echo "" && \
-    echo "2. CONTEUDO DO config/app.php (linhas com key):" && \
-    grep -n "'key'" config/app.php && \
-    echo "" && \
-    echo "============================================="
+    echo "Conteudo do config/app.php (key e cipher):" && \
+    grep -n "'key'\|'cipher'" config/app.php
 
-RUN sed -i "s/'cipher' => 'AES-256-CBC'/'cipher' => env('APP_CIPHER', 'aes-256-cbc')/g" config/app.php
-
-RUN sed -i "s/'cipher' => 'AES-128-CBC'/'cipher' => env('APP_CIPHER', 'aes-256-cbc')/g" config/app.php
-
-RUN sed -i "s/'key' => 'base64:.*'/'key' => env('APP_KEY')/g" config/app.php
-
-RUN echo "=============================================" && \
-    echo "INVESTIGACAO DETETIVE - DEPOIS DAS CORRECOES" && \
-    echo "=============================================" && \
-    echo "" && \
-    echo "1. CONTEUDO DO config/app.php (linhas com cipher):" && \
-    grep -n "cipher" config/app.php && \
-    echo "" && \
-    echo "2. CONTEUDO DO config/app.php (linhas com key):" && \
-    grep -n "'key'" config/app.php && \
-    echo "" && \
-    echo "============================================="
-
-RUN rm -rf bootstrap/cache/*.php storage/framework/cache/data/* storage/framework/views/*
+RUN rm -f .env && \
+    rm -f bootstrap/cache/config.php && \
+    rm -f bootstrap/cache/routes.php && \
+    rm -f bootstrap/cache/packages.php && \
+    rm -f bootstrap/cache/services.php && \
+    rm -rf storage/framework/cache/data/* && \
+    rm -rf storage/framework/views/*
 
 COPY --from=build-assets /app/public/build ./public/build
 
@@ -83,42 +69,83 @@ RUN cat > /usr/local/bin/start.sh << 'SCRIPT_END'
 #!/bin/bash
 
 echo "=================================================="
-echo "DELACAO PREMIADA - INVESTIGACAO EM RUNTIME"
+echo "INVESTIGACAO COMPLETA - RUNTIME"
 echo "=================================================="
 echo ""
 
-echo "1. VARIAVEIS DE AMBIENTE:"
-echo "   APP_ENV: $APP_ENV"
-echo "   APP_CIPHER: $APP_CIPHER"
-echo "   APP_KEY (completa): $APP_KEY"
-echo ""
-
-echo "2. TAMANHO DA APP_KEY DECODIFICADA:"
-APP_KEY_DECODED=$(echo "$APP_KEY" | sed 's/base64://' | base64 -d | wc -c)
-echo "   Bytes: $APP_KEY_DECODED"
-if [ "$APP_KEY_DECODED" -eq 32 ]; then
-    echo "   Status: OK para AES-256-CBC (32 bytes)"
-elif [ "$APP_KEY_DECODED" -eq 16 ]; then
-    echo "   Status: OK para AES-128-CBC (16 bytes)"
+echo "1. VERIFICANDO ARQUIVOS:"
+echo "   .env existe?"
+if [ -f ".env" ]; then
+    echo "   SIM - PROBLEMA! Conteudo:"
+    cat .env
 else
-    echo "   Status: ERRO - Tamanho invalido!"
+    echo "   NAO - OK"
 fi
 echo ""
 
-echo "3. CONTEUDO REAL DO config/app.php (cipher):"
-grep "'cipher'" config/app.php
+echo "   bootstrap/cache/config.php existe?"
+if [ -f "bootstrap/cache/config.php" ]; then
+    echo "   SIM - PROBLEMA! Deletando..."
+    rm -f bootstrap/cache/config.php
+else
+    echo "   NAO - OK"
+fi
 echo ""
 
-echo "4. CONTEUDO REAL DO config/app.php (key):"
-grep "'key'" config/app.php | head -1
+echo "2. VARIAVEIS DE AMBIENTE DO SISTEMA:"
+echo "   APP_KEY: $APP_KEY"
+echo "   APP_CIPHER: $APP_CIPHER"
+echo "   APP_ENV: $APP_ENV"
+echo "   JWT_SECRET: $JWT_SECRET"
 echo ""
 
-echo "5. TESTE DE CRIPTOGRAFIA:"
-php artisan tinker --execute="try { \$encrypted = encrypt('teste'); echo '   Criptografia: OK\n'; } catch (\Exception \$e) { echo '   Criptografia: ERRO - ' . \$e->getMessage() . '\n'; }"
+echo "3. TAMANHO DA APP_KEY:"
+if [ -n "$APP_KEY" ]; then
+    KEY_WITHOUT_PREFIX=$(echo "$APP_KEY" | sed 's/base64://')
+    KEY_DECODED_SIZE=$(echo "$KEY_WITHOUT_PREFIX" | base64 -d 2>/dev/null | wc -c)
+    echo "   Bytes decodificados: $KEY_DECODED_SIZE"
+    if [ "$KEY_DECODED_SIZE" -eq 32 ]; then
+        echo "   Status: OK para AES-256-CBC"
+    elif [ "$KEY_DECODED_SIZE" -eq 16 ]; then
+        echo "   Status: OK para AES-128-CBC"
+    else
+        echo "   Status: INVALIDO!"
+    fi
+else
+    echo "   APP_KEY NAO DEFINIDA!"
+fi
 echo ""
 
-echo "6. CONFIGURACAO QUE O LARAVEL ESTA USANDO:"
-php artisan tinker --execute="echo '   APP_KEY: ' . config('app.key') . '\n'; echo '   APP_CIPHER: ' . config('app.cipher') . '\n';"
+echo "4. LIMPANDO CACHES DO LARAVEL:"
+php artisan config:clear
+php artisan cache:clear
+php artisan view:clear
+php artisan route:clear
+echo ""
+
+echo "5. CONFIGURACAO QUE O LARAVEL ESTA USANDO:"
+php artisan tinker --execute="
+echo 'APP_KEY do config: ' . config('app.key') . PHP_EOL;
+echo 'APP_CIPHER do config: ' . config('app.cipher') . PHP_EOL;
+echo 'APP_KEY do env(): ' . env('APP_KEY') . PHP_EOL;
+echo 'APP_CIPHER do env(): ' . env('APP_CIPHER') . PHP_EOL;
+"
+echo ""
+
+echo "6. TESTE DE CRIPTOGRAFIA:"
+php artisan tinker --execute="
+try {
+    \$encrypted = encrypt('teste123');
+    \$decrypted = decrypt(\$encrypted);
+    if (\$decrypted === 'teste123') {
+        echo 'CRIPTOGRAFIA: OK' . PHP_EOL;
+    } else {
+        echo 'CRIPTOGRAFIA: ERRO - Decriptacao incorreta' . PHP_EOL;
+    }
+} catch (\Exception \$e) {
+    echo 'CRIPTOGRAFIA: ERRO - ' . \$e->getMessage() . PHP_EOL;
+}
+"
 echo ""
 
 echo "=================================================="
@@ -126,9 +153,9 @@ echo ""
 
 sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf
 
-php artisan config:clear
-
 php artisan migrate --force > /dev/null 2>&1 || echo "DB OK"
+
+echo "INICIANDO SERVICOS..."
 
 php-fpm -D
 
