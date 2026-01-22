@@ -43,9 +43,12 @@ RUN composer dump-autoload --optimize
 RUN echo "--- BUSCANDO ARQUIVOS COM AES-128-CBC ---" && \
     grep -r "AES-128-CBC" . || echo "Nenhum arquivo encontrado"
 
-RUN find . -type f -name "*.php" -exec sed -i 's/AES-128-CBC/AES-256-CBC/g' {} +
+RUN find . -type f -name "*.php" -exec sed -i 's/AES-128-CBC/aes-256-cbc/g' {} +
+RUN find . -type f -name "*.php" -exec sed -i 's/AES-256-CBC/aes-256-cbc/g' {} +
 
-RUN sed -i "s/'cipher' => 'AES-128-CBC'/'cipher' => env('APP_CIPHER', 'AES-256-CBC')/g" config/app.php
+RUN sed -i "s/'cipher' => 'AES-128-CBC'/'cipher' => env('APP_CIPHER', 'aes-256-cbc')/g" config/app.php
+RUN sed -i "s/'cipher' => 'AES-256-CBC'/'cipher' => env('APP_CIPHER', 'aes-256-cbc')/g" config/app.php
+RUN sed -i "s/'cipher' => 'aes-128-cbc'/'cipher' => env('APP_CIPHER', 'aes-256-cbc')/g" config/app.php
 
 RUN php artisan config:clear || true
 RUN php artisan view:clear || true
