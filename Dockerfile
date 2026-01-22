@@ -40,15 +40,9 @@ COPY . .
 
 RUN composer dump-autoload --optimize
 
-RUN echo "--- BUSCANDO ARQUIVOS COM AES-128-CBC ---" && \
-    grep -r "AES-128-CBC" . || echo "Nenhum arquivo encontrado"
+RUN echo "--- VERIFICANDO CONFIGURACAO DE CIFRAS ---"
 
-RUN find . -type f -name "*.php" -exec sed -i 's/AES-128-CBC/aes-256-cbc/g' {} +
-RUN find . -type f -name "*.php" -exec sed -i 's/AES-256-CBC/aes-256-cbc/g' {} +
-
-RUN sed -i "s/'cipher' => 'AES-128-CBC'/'cipher' => env('APP_CIPHER', 'aes-256-cbc')/g" config/app.php
-RUN sed -i "s/'cipher' => 'AES-256-CBC'/'cipher' => env('APP_CIPHER', 'aes-256-cbc')/g" config/app.php
-RUN sed -i "s/'cipher' => 'aes-128-cbc'/'cipher' => env('APP_CIPHER', 'aes-256-cbc')/g" config/app.php
+RUN grep -n "cipher" config/app.php || echo "Linha cipher nao encontrada"
 
 RUN php artisan config:clear || true
 RUN php artisan view:clear || true
@@ -65,10 +59,10 @@ RUN echo 'server { listen 80; root /var/www/html/public; index index.php; locati
 
 RUN echo '#!/bin/sh' > /usr/local/bin/start.sh
 
-RUN echo 'echo "--- VERIFICANDO VARIAVEIS DE AMBIENTE ---"' >> /usr/local/bin/start.sh
+RUN echo 'echo "=== VERIFICANDO VARIAVEIS DE AMBIENTE ==="' >> /usr/local/bin/start.sh
 RUN echo 'echo "APP_ENV: ${APP_ENV}"' >> /usr/local/bin/start.sh
 RUN echo 'echo "APP_CIPHER: ${APP_CIPHER}"' >> /usr/local/bin/start.sh
-RUN echo 'echo "-------------------------------------------"' >> /usr/local/bin/start.sh
+RUN echo 'echo "========================================="' >> /usr/local/bin/start.sh
 
 RUN echo 'sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf' >> /usr/local/bin/start.sh
 
