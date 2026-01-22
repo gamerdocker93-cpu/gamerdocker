@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     zip unzip git \
     libpng-dev libjpeg-dev libfreetype6-dev \
+    bash \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo_mysql intl zip bcmath gd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -42,14 +43,12 @@ RUN echo "=============================================" && \
     echo "INVESTIGACAO DETETIVE - ANTES DAS CORRECOES" && \
     echo "=============================================" && \
     echo "" && \
-    echo "1. CONTEUDO DO config/app.php (linhas 444-447):" && \
-    sed -n '444,447p' config/app.php && \
-    echo "" && \
-    echo "2. BUSCANDO TODAS AS REFERENCIAS A 'cipher' NO ARQUIVO:" && \
+    echo "1. CONTEUDO DO config/app.php (linhas com cipher):" && \
     grep -n "cipher" config/app.php && \
     echo "" && \
-    echo "3. BUSCANDO TODAS AS REFERENCIAS A 'key' NO ARQUIVO:" && \
+    echo "2. CONTEUDO DO config/app.php (linhas com key):" && \
     grep -n "'key'" config/app.php && \
+    echo "" && \
     echo "============================================="
 
 RUN sed -i "s/'cipher' => 'AES-256-CBC'/'cipher' => env('APP_CIPHER', 'aes-256-cbc')/g" config/app.php
@@ -62,14 +61,12 @@ RUN echo "=============================================" && \
     echo "INVESTIGACAO DETETIVE - DEPOIS DAS CORRECOES" && \
     echo "=============================================" && \
     echo "" && \
-    echo "1. CONTEUDO DO config/app.php (linhas 444-447):" && \
-    sed -n '444,447p' config/app.php && \
-    echo "" && \
-    echo "2. BUSCANDO TODAS AS REFERENCIAS A 'cipher' NO ARQUIVO:" && \
+    echo "1. CONTEUDO DO config/app.php (linhas com cipher):" && \
     grep -n "cipher" config/app.php && \
     echo "" && \
-    echo "3. BUSCANDO TODAS AS REFERENCIAS A 'key' NO ARQUIVO:" && \
+    echo "2. CONTEUDO DO config/app.php (linhas com key):" && \
     grep -n "'key'" config/app.php && \
+    echo "" && \
     echo "============================================="
 
 RUN rm -rf bootstrap/cache/*.php storage/framework/cache/data/* storage/framework/views/*
@@ -82,49 +79,61 @@ RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*
 
 RUN echo 'server { listen 80; root /var/www/html/public; index index.php; location / { try_files $uri $uri/ /index.php?$query_string; } location ~ \.php$ { include fastcgi_params; fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; fastcgi_pass 127.0.0.1:9000; } }' > /etc/nginx/conf.d/default.conf
 
-RUN echo '#!/bin/sh' > /usr/local/bin/start.sh && \
-    echo '' >> /usr/local/bin/start.sh && \
-    echo 'echo "=================================================="' >> /usr/local/bin/start.sh && \
-    echo 'echo "DELACAO PREMIADA - INVESTIGACAO EM RUNTIME"' >> /usr/local/bin/start.sh && \
-    echo 'echo "=================================================="' >> /usr/local/bin/start.sh && \
-    echo 'echo ""' >> /usr/local/bin/start.sh && \
-    echo 'echo "1. VARIAVEIS DE AMBIENTE:"' >> /usr/local/bin/start.sh && \
-    echo 'echo "   APP_ENV: ${APP_ENV}"' >> /usr/local/bin/start.sh && \
-    echo 'echo "   APP_CIPHER: ${APP_CIPHER}"' >> /usr/local/bin/start.sh && \
-    echo 'echo "   APP_KEY (primeiros 30 chars): ${APP_KEY:0:30}..."' >> /usr/local/bin/start.sh && \
-    echo 'echo ""' >> /usr/local/bin/start.sh && \
-    echo 'echo "2. TAMANHO DA APP_KEY DECODIFICADA:"' >> /usr/local/bin/start.sh && \
-    echo 'APP_KEY_DECODED=$(echo "${APP_KEY#base64:}" | base64 -d 2>/dev/null | wc -c)' >> /usr/local/bin/start.sh && \
-    echo 'echo "   Bytes: $APP_KEY_DECODED"' >> /usr/local/bin/start.sh && \
-    echo 'if [ "$APP_KEY_DECODED" = "32" ]; then' >> /usr/local/bin/start.sh && \
-    echo '    echo "   Status: OK para AES-256-CBC"' >> /usr/local/bin/start.sh && \
-    echo 'elif [ "$APP_KEY_DECODED" = "16" ]; then' >> /usr/local/bin/start.sh && \
-    echo '    echo "   Status: OK para AES-128-CBC"' >> /usr/local/bin/start.sh && \
-    echo 'else' >> /usr/local/bin/start.sh && \
-    echo '    echo "   Status: ERRO - Tamanho invalido!"' >> /usr/local/bin/start.sh && \
-    echo 'fi' >> /usr/local/bin/start.sh && \
-    echo 'echo ""' >> /usr/local/bin/start.sh && \
-    echo 'echo "3. CONTEUDO REAL DO config/app.php (cipher):"' >> /usr/local/bin/start.sh && \
-    echo 'grep -A 1 "cipher" config/app.php | head -2' >> /usr/local/bin/start.sh && \
-    echo 'echo ""' >> /usr/local/bin/start.sh && \
-    echo 'echo "4. TESTE DE CRIPTOGRAFIA:"' >> /usr/local/bin/start.sh && \
-    echo 'php artisan tinker --execute="try { Crypt::encryptString(\"teste\"); echo \"Criptografia: OK\n\"; } catch (\Exception \$e) { echo \"Criptografia: ERRO - \" . \$e->getMessage() . \"\n\"; }"' >> /usr/local/bin/start.sh && \
-    echo 'echo ""' >> /usr/local/bin/start.sh && \
-    echo 'echo "5. CONFIGURACAO QUE O LARAVEL ESTA USANDO:"' >> /usr/local/bin/start.sh && \
-    echo 'php artisan tinker --execute="echo \"   APP_KEY: \" . substr(config(\"app.key\"), 0, 30) . \"...\n\"; echo \"   APP_CIPHER: \" . config(\"app.cipher\") . \"\n\";"' >> /usr/local/bin/start.sh && \
-    echo 'echo ""' >> /usr/local/bin/start.sh && \
-    echo 'echo "=================================================="' >> /usr/local/bin/start.sh && \
-    echo 'echo ""' >> /usr/local/bin/start.sh && \
-    echo '' >> /usr/local/bin/start.sh && \
-    echo 'sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf' >> /usr/local/bin/start.sh && \
-    echo '' >> /usr/local/bin/start.sh && \
-    echo 'php artisan config:clear' >> /usr/local/bin/start.sh && \
-    echo '' >> /usr/local/bin/start.sh && \
-    echo 'php artisan migrate --force > /dev/null 2>&1 || echo "DB OK"' >> /usr/local/bin/start.sh && \
-    echo '' >> /usr/local/bin/start.sh && \
-    echo 'php-fpm -D' >> /usr/local/bin/start.sh && \
-    echo '' >> /usr/local/bin/start.sh && \
-    echo 'nginx -g "daemon off;"' >> /usr/local/bin/start.sh
+RUN cat > /usr/local/bin/start.sh << 'SCRIPT_END'
+#!/bin/bash
+
+echo "=================================================="
+echo "DELACAO PREMIADA - INVESTIGACAO EM RUNTIME"
+echo "=================================================="
+echo ""
+
+echo "1. VARIAVEIS DE AMBIENTE:"
+echo "   APP_ENV: $APP_ENV"
+echo "   APP_CIPHER: $APP_CIPHER"
+echo "   APP_KEY (completa): $APP_KEY"
+echo ""
+
+echo "2. TAMANHO DA APP_KEY DECODIFICADA:"
+APP_KEY_DECODED=$(echo "$APP_KEY" | sed 's/base64://' | base64 -d | wc -c)
+echo "   Bytes: $APP_KEY_DECODED"
+if [ "$APP_KEY_DECODED" -eq 32 ]; then
+    echo "   Status: OK para AES-256-CBC (32 bytes)"
+elif [ "$APP_KEY_DECODED" -eq 16 ]; then
+    echo "   Status: OK para AES-128-CBC (16 bytes)"
+else
+    echo "   Status: ERRO - Tamanho invalido!"
+fi
+echo ""
+
+echo "3. CONTEUDO REAL DO config/app.php (cipher):"
+grep "'cipher'" config/app.php
+echo ""
+
+echo "4. CONTEUDO REAL DO config/app.php (key):"
+grep "'key'" config/app.php | head -1
+echo ""
+
+echo "5. TESTE DE CRIPTOGRAFIA:"
+php artisan tinker --execute="try { \$encrypted = encrypt('teste'); echo '   Criptografia: OK\n'; } catch (\Exception \$e) { echo '   Criptografia: ERRO - ' . \$e->getMessage() . '\n'; }"
+echo ""
+
+echo "6. CONFIGURACAO QUE O LARAVEL ESTA USANDO:"
+php artisan tinker --execute="echo '   APP_KEY: ' . config('app.key') . '\n'; echo '   APP_CIPHER: ' . config('app.cipher') . '\n';"
+echo ""
+
+echo "=================================================="
+echo ""
+
+sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf
+
+php artisan config:clear
+
+php artisan migrate --force > /dev/null 2>&1 || echo "DB OK"
+
+php-fpm -D
+
+nginx -g "daemon off;"
+SCRIPT_END
 
 RUN chmod +x /usr/local/bin/start.sh
 
