@@ -1,5 +1,3 @@
-# Dockerfile para Laravel 10 + Vue 3 no Railway
-
 FROM node:18-alpine AS build-assets
 
 WORKDIR /app
@@ -40,14 +38,13 @@ COPY . .
 
 RUN composer dump-autoload --optimize
 
-RUN echo "--- VERIFICANDO CONFIGURACAO DE CIFRAS ---"
+RUN sed -i "s/'cipher' => 'AES-256-CBC'/'cipher' => env('APP_CIPHER', 'aes-256-cbc')/g" config/app.php
 
-RUN grep -n "cipher" config/app.php || echo "Linha cipher nao encontrada"
+RUN sed -i "s/'cipher' => 'AES-128-CBC'/'cipher' => env('APP_CIPHER', 'aes-256-cbc')/g" config/app.php
 
-RUN php artisan config:clear || true
-RUN php artisan view:clear || true
+RUN sed -i "s/'key' => 'base64:.*'/'key' => env('APP_KEY')/g" config/app.php
 
-RUN rm -rf bootstrap/cache/*.php storage/framework/cache/data/*
+RUN rm -rf bootstrap/cache/*.php storage/framework/cache/data/* storage/framework/views/*
 
 COPY --from=build-assets /app/public/build ./public/build
 
@@ -57,22 +54,16 @@ RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*
 
 RUN echo 'server { listen 80; root /var/www/html/public; index index.php; location / { try_files $uri $uri/ /index.php?$query_string; } location ~ \.php$ { include fastcgi_params; fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; fastcgi_pass 127.0.0.1:9000; } }' > /etc/nginx/conf.d/default.conf
 
-RUN echo '#!/bin/sh' > /usr/local/bin/start.sh
-
-RUN echo 'echo "=== VERIFICANDO VARIAVEIS DE AMBIENTE ==="' >> /usr/local/bin/start.sh
-RUN echo 'echo "APP_ENV: ${APP_ENV}"' >> /usr/local/bin/start.sh
-RUN echo 'echo "APP_CIPHER: ${APP_CIPHER}"' >> /usr/local/bin/start.sh
-RUN echo 'echo "========================================="' >> /usr/local/bin/start.sh
-
-RUN echo 'sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf' >> /usr/local/bin/start.sh
-
-RUN echo 'php artisan config:clear' >> /usr/local/bin/start.sh
-
-RUN echo 'php artisan migrate --force > /dev/null 2>&1 || echo "DB OK"' >> /usr/local/bin/start.sh
-
-RUN echo 'php-fpm -D' >> /usr/local/bin/start.sh
-
-RUN echo 'nginx -g "daemon off;"' >> /usr/local/bin/start.sh
+RUN echo '#!/bin/sh' > /usr/local/bin/start.sh && \
+    echo 'echo "=========================================="' >> /usr/local/bin/start.sh && \
+    echo 'echo "APP_ENV: ${APP_ENV}"' >> /usr/local/bin/start.sh && \
+    echo 'echo "APP_CIPHER: ${APP_CIPHER}"' >> /usr/local/bin/start.sh && \
+    echo 'echo "=========================================="' >> /usr/local/bin/start.sh && \
+    echo 'sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf' >> /usr/local/bin/start.sh && \
+    echo 'php artisan config:clear' >> /usr/local/bin/start.sh && \
+    echo 'php artisan migrate --force > /dev/null 2>&1 || echo "DB OK"' >> /usr/local/bin/start.sh && \
+    echo 'php-fpm -D' >> /usr/local/bin/start.sh && \
+    echo 'nginx -g "daemon off;"' >> /usr/local/bin/start.sh
 
 RUN chmod +x /usr/local/bin/start.sh
 
