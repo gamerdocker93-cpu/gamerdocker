@@ -24,8 +24,8 @@ return new class extends Migration
             $table->string('game_code')->unique();
             $table->string('game_type')->nullable();
             $table->string('description')->nullable();
-            $table->string('cover')->nullable();
-            $table->string('status')->default('active');
+            $table->string('cover');
+            $table->string('status');
             $table->string('technology')->nullable();
 
             $table->boolean('has_lobby')->default(false);
@@ -34,8 +34,8 @@ return new class extends Migration
             $table->boolean('has_tables')->default(false);
             $table->boolean('only_demo')->default(false);
 
-            $table->unsignedSmallInteger('rtp')->default(0)->comment('Controle de RTP em porcentagem');
-            $table->string('distribution')->nullable()->comment('O nome do provedor');
+            $table->unsignedSmallInteger('rtp')->comment('Controle de RTP em porcentagem');
+            $table->string('distribution')->comment('O nome do provedor');
 
             $table->unsignedBigInteger('views')->default(0);
             $table->boolean('is_featured')->default(false);
