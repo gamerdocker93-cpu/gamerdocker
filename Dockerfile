@@ -23,11 +23,15 @@ RUN sed -i 's|listen = .*|listen = 127.0.0.1:9000|' /usr/local/etc/php-fpm.d/zz-
 
 WORKDIR /var/www/html
 
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+COPY composer.json composer.lock ./
 
-# (opcional, mas ajuda) evita warning de superuser do composer
-ENV COMPOSER_ALLOW_SUPERUSER=1
-ENV COMPOSER_MEMORY_LIMIT=-1
+RUN mkdir -p storage/framework/cache \
+    storage/framework/sessions \
+    storage/framework/views \
+    bootstrap/cache && \
+    chmod -R 775 storage bootstrap/cache
+
+RUN composer install --no-dev --optimize-autoloader --no-interaction
 
 # melhor cache do composer
 COPY composer.json composer.lock ./
