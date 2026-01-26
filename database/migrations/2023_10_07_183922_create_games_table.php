@@ -6,12 +6,8 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        // Evita erro se a tabela já existe (ex: banco já veio do .sql)
         if (Schema::hasTable('games')) {
             return;
         }
@@ -19,11 +15,8 @@ return new class extends Migration
         Schema::create('games', function (Blueprint $table) {
             $table->id();
 
-            $table->unsignedInteger('provider_id')->index();
-            $table->foreign('provider_id')
-                ->references('id')
-                ->on('providers')
-                ->onDelete('cascade');
+            $table->unsignedBigInteger('provider_id')->index();
+            $table->foreign('provider_id')->references('id')->on('providers')->onDelete('cascade');
 
             $table->string('game_server_url')->nullable();
             $table->string('game_id');
@@ -31,20 +24,20 @@ return new class extends Migration
             $table->string('game_code')->unique();
             $table->string('game_type')->nullable();
             $table->string('description')->nullable();
-            $table->string('cover');
-            $table->string('status');
+            $table->string('cover')->nullable();
+            $table->string('status')->default('active');
             $table->string('technology')->nullable();
 
-            $table->tinyInteger('has_lobby')->default(0);
-            $table->tinyInteger('is_mobile')->default(0);
-            $table->tinyInteger('has_freespins')->default(0);
-            $table->tinyInteger('has_tables')->default(0);
-            $table->tinyInteger('only_demo')->default(0);
+            $table->boolean('has_lobby')->default(false);
+            $table->boolean('is_mobile')->default(false);
+            $table->boolean('has_freespins')->default(false);
+            $table->boolean('has_tables')->default(false);
+            $table->boolean('only_demo')->default(false);
 
-            $table->bigInteger('rtp')->comment('Controle de RTP em porcentagem');
-            $table->string('distribution')->comment('O nome do provedor');
+            $table->unsignedSmallInteger('rtp')->default(0)->comment('Controle de RTP em porcentagem');
+            $table->string('distribution')->nullable()->comment('O nome do provedor');
 
-            $table->bigInteger('views')->default(0);
+            $table->unsignedBigInteger('views')->default(0);
             $table->boolean('is_featured')->default(false);
             $table->boolean('show_home')->default(false);
 
@@ -52,9 +45,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('games');
