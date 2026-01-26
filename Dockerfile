@@ -1,15 +1,20 @@
+### =========================
+### Build dos assets (Vue)
+### =========================
 FROM node:18-alpine AS build-assets
 
 WORKDIR /app
 
 COPY package*.json ./
-
 RUN npm install
 
 COPY . .
-
 RUN npm run build
 
+
+### =========================
+### PHP + Nginx
+### =========================
 FROM php:8.2-fpm
 
 RUN apt-get update && apt-get install -y \
@@ -30,14 +35,12 @@ WORKDIR /var/www/html
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-COPY database/ database/
 COPY composer.json composer.lock ./
+COPY database/ database/
 
-RUN composer install --no-dev --no-scripts --ignore-platform-reqs --no-autoloader
+RUN composer install --no-dev --no-scripts --optimize-autoloader
 
 COPY . .
-
-RUN composer dump-autoload --optimize
 
 RUN rm -f .env
 
@@ -47,59 +50,44 @@ RUN rm -f bootstrap/cache/*.php && \
 
 COPY --from=build-assets /app/public/build ./public/build
 
-RUN chown -R www-data:www-data /var/www/html && chmod -R 775 storage bootstrap/cache
+RUN chown -R www-data:www-data /var/www/html && \
+    chmod -R 775 storage bootstrap/cache
 
 RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*
 
-RUN echo 'server { listen 80; root /var/www/html/public; index index.php; location / { try_files $uri $uri/ /index.php?$query_string; } location ~ \.php$ { include fastcgi_params; fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; fastcgi_pass 127.0.0.1:9000; } }' > /etc/nginx/conf.d/default.conf
+RUN echo 'server { \
+    listen 80; \
+    root /var/www/html/public; \
+    index index.php; \
+    location / { try_files $uri $uri/ /index.php?$query_string; } \
+    location ~ \.php$ { \
+        include fastcgi_params; \
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; \
+        fastcgi_pass 127.0.0.1:9000; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
 
-RUN cat > /usr/local/bin/start.sh << 'SCRIPT_END'
+RUN cat > /usr/local/bin/start.sh << 'EOF'
 #!/bin/bash
+set -e
 
-echo "=================================================="
-echo "INICIANDO APLICACAO"
-echo "=================================================="
+echo "======================================"
+echo "INICIANDO APLICACAO LARAVEL"
+echo "======================================"
 
 rm -f .env
 
-rm -f bootstrap/cache/config.php
-php artisan config:clear 2>/dev/null || true
-php artisan cache:clear 2>/dev/null || true
-php artisan view:clear 2>/dev/null || true
-
-echo ""
-echo "VERIFICACAO:"
-echo "  APP_KEY do ambiente: $APP_KEY"
-echo "  APP_CIPHER do ambiente: $APP_CIPHER"
-echo ""
-
-echo "TESTE DE CRIPTOGRAFIA:"
-php artisan tinker --execute="
-try {
-    \$encrypted = encrypt('teste123');
-    \$decrypted = decrypt(\$encrypted);
-    if (\$decrypted === 'teste123') {
-        echo 'RESULTADO: OK' . PHP_EOL;
-    } else {
-        echo 'RESULTADO: ERRO' . PHP_EOL;
-    }
-} catch (\Exception \$e) {
-    echo 'RESULTADO: ERRO - ' . \$e->getMessage() . PHP_EOL;
-}
-"
-echo ""
+php artisan config:clear || true
+php artisan cache:clear || true
+php artisan view:clear || true
 
 sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf
 
-php artisan migrate --force 2>/dev/null || echo "DB: Verificado"
-
-echo "=================================================="
-echo "APLICACAO PRONTA"
-echo "=================================================="
+php artisan migrate --force || echo "DB OK"
 
 php-fpm -D
 nginx -g "daemon off;"
-SCRIPT_END
+EOF
 
 RUN chmod +x /usr/local/bin/start.sh
 
