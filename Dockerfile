@@ -25,11 +25,20 @@ WORKDIR /var/www/html
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# melhor cache do composer
-COPY composer.json composer.lock ./
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+# (opcional, mas ajuda) evita warning de superuser do composer
+ENV COMPOSER_ALLOW_SUPERUSER=1
+ENV COMPOSER_MEMORY_LIMIT=-1
 
+# melhor cache do composer (SEM scripts aqui)
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --no-scripts --optimize-autoloader
+
+# agora copia o projeto (aqui o "artisan" passa a existir)
 COPY . .
+
+# agora sim pode rodar scripts do Laravel sem quebrar
+RUN composer dump-autoload -o \
+ && php artisan package:discover --ansi || true
 
 # assets do Vite
 COPY --from=build-assets /app/public/build ./public/build
@@ -76,13 +85,11 @@ echo "  APP_CIPHER: ${APP_CIPHER}"
 echo "  APP_KEY: ${APP_KEY}"
 echo ""
 
-# Validar APP_KEY (aes-256-cbc precisa 32 bytes)
 if [ -z "${APP_KEY}" ]; then
   echo "ERRO: APP_KEY nao definido nas Variables da Railway."
   exit 1
 fi
 
-# remove aspas acidentais (muito comum em variável)
 APP_KEY_CLEAN=$(echo -n "${APP_KEY}" | sed 's/^"//; s/"$//; s/^\x27//; s/\x27$//')
 
 if echo "${APP_KEY_CLEAN}" | grep -q '^base64:'; then
@@ -122,7 +129,6 @@ set -e
 
 if [ $CODE -ne 0 ]; then
   echo "$OUT"
-  # se for erro de tabela existente, não derruba o deploy
   echo "$OUT" | grep -q "Base table or view already exists" && echo "DB: tabela ja existe (ok)" || exit $CODE
 else
   echo "DB: migrations OK"
