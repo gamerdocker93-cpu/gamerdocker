@@ -23,6 +23,11 @@ RUN sed -i 's|listen = .*|listen = 127.0.0.1:9000|' /usr/local/etc/php-fpm.d/zz-
 
 WORKDIR /var/www/html
 
+# Instalar Composer manualmente
+RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" && \
+    php composer-setup.php --install-dir=/usr/local/bin --filename=composer && \
+    php -r "unlink('composer-setup.php');"
+
 COPY composer.json composer.lock ./
 
 RUN mkdir -p storage/framework/cache \
