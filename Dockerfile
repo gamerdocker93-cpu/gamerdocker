@@ -29,9 +29,19 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 ENV COMPOSER_ALLOW_SUPERUSER=1
 ENV COMPOSER_MEMORY_LIMIT=-1
 
-# melhor cache do composer (SEM scripts aqui)
+# melhor cache do composer
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --no-scripts --optimize-autoloader
+
+# precisa do artisan (e bootstrap/config) ANTES do composer instalar
+COPY artisan artisan
+COPY bootstrap/ bootstrap/
+COPY config/ config/
+COPY app/ app/
+COPY routes/ routes/
+COPY database/ database/
+COPY resources/ resources/
+
+RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
 # agora copia o projeto (aqui o "artisan" passa a existir)
 COPY . .
