@@ -28,36 +28,22 @@ RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" &&
     php composer-setup.php --install-dir=/usr/local/bin --filename=composer && \
     php -r "unlink('composer-setup.php');"
 
-COPY composer.json composer.lock ./
-
+# Pastas necessárias pro Laravel não quebrar
 RUN mkdir -p storage/framework/cache \
     storage/framework/sessions \
     storage/framework/views \
     bootstrap/cache && \
     chmod -R 775 storage bootstrap/cache
 
-RUN composer install --no-dev --optimize-autoloader --no-interaction
-
-# melhor cache do composer
+# 1) Cache do composer (SEM scripts)
 COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts
 
-# precisa do artisan (e bootstrap/config) ANTES do composer instalar
-COPY artisan artisan
-COPY bootstrap/ bootstrap/
-COPY config/ config/
-COPY app/ app/
-COPY routes/ routes/
-COPY database/ database/
-COPY resources/ resources/
-
-RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
-
-# agora copia o projeto (aqui o "artisan" passa a existir)
+# 2) Agora copia o app (artisan e configs já existem)
 COPY . .
 
-# agora sim pode rodar scripts do Laravel sem quebrar
-RUN composer dump-autoload -o \
- && php artisan package:discover --ansi || true
+# 3) Agora roda scripts do Laravel com tudo no lugar
+RUN composer dump-autoload -o && php artisan package:discover --ansi || true
 
 # assets do Vite
 COPY --from=build-assets /app/public/build ./public/build
