@@ -15,18 +15,19 @@ return new class extends Migration
         Schema::create('sub_affiliates', function (Blueprint $table) {
             $table->id();
 
-            // CORREÇÃO: precisa bater com users.id (bigint unsigned)
             $table->unsignedBigInteger('affiliate_id');
             $table->index('affiliate_id');
             $table->foreign('affiliate_id')->references('id')->on('users')->onDelete('cascade');
 
-            // CORREÇÃO: precisa bater com users.id (bigint unsigned)
             $table->unsignedBigInteger('user_id');
             $table->index('user_id');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->tinyInteger('status')->default(0);
             $table->timestamps();
+
+            // opcional (recomendado): evita duplicar vínculo
+            $table->unique(['affiliate_id', 'user_id']);
         });
     }
 
