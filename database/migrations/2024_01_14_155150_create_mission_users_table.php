@@ -15,12 +15,10 @@ return new class extends Migration
         Schema::create('mission_users', function (Blueprint $table) {
             $table->id();
 
-            // CORREÇÃO: compatível com users.id (bigint unsigned)
             $table->unsignedBigInteger('user_id');
             $table->index('user_id');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
 
-            // CORREÇÃO: compatível com missions.id (provavelmente bigint)
             $table->unsignedBigInteger('mission_id');
             $table->index('mission_id');
             $table->foreign('mission_id')->references('id')->on('missions')->onDelete('cascade');
@@ -29,6 +27,9 @@ return new class extends Migration
             $table->decimal('rewards', 10, 2)->default(0);
             $table->tinyInteger('status')->default(0);
             $table->timestamps();
+
+            // opcional: evita duplicar a mesma missão para o mesmo usuário
+            $table->unique(['user_id', 'mission_id']);
         });
     }
 
