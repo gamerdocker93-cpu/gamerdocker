@@ -64,6 +64,10 @@ RUN printf '%s\n' \
 '  }' \
 '}' > /etc/nginx/conf.d/default.conf
 
+# ---- CACHEBUST: mude no Railway (ex: 2,3,4) para forçar rebuild e evitar cache do start.sh
+ARG CACHEBUST=1
+RUN echo "CACHEBUST=$CACHEBUST"
+
 RUN cat > /usr/local/bin/start.sh << 'SCRIPT_END'
 #!/bin/bash
 set -e
@@ -86,11 +90,15 @@ if [ -z "${APP_KEY}" ]; then
   exit 1
 fi
 
-APP_KEY_CLEAN=$(printf "%s" "$APP_KEY" | sed 's/^"//; s/"$//; s/^\x27//; s/\x27$//')
+# Remove aspas + remove \r \n + remove espaços nas pontas (xargs)
+APP_KEY_CLEAN=$(printf "%s" "$APP_KEY" \
+  | sed 's/^"//; s/"$//; s/^\x27//; s/\x27$//' \
+  | tr -d '\r\n' \
+  | xargs)
 
 if printf "%s" "$APP_KEY_CLEAN" | grep -q '^base64:'; then
   KEY_B64="${APP_KEY_CLEAN#base64:}"
-  KEY_LEN=$(php -r '$k=base64_decode($argv[1], true); echo $k===false ? -1 : strlen($k);' "$KEY_B64")
+  KEY_LEN=$(php -r '$k=base64_decode($argv[1], true); echo ($k===false) ? 0 : strlen($k);' "$KEY_B64")
 else
   KEY_LEN=$(php -r 'echo strlen($argv[1]);' "$APP_KEY_CLEAN")
 fi
@@ -106,17 +114,25 @@ php artisan config:clear >/dev/null 2>&1 || true
 php artisan cache:clear  >/dev/null 2>&1 || true
 php artisan view:clear   >/dev/null 2>&1 || true
 
-echo "INFO Running migrations..."
-set +e
-OUT=$(php artisan migrate --force --no-interaction 2>&1)
-CODE=$?
-set -e
+# =========================
+# Migrations (sem loop)
+# =========================
+if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
+  echo "INFO Running migrations..."
+  set +e
+  OUT=$(php artisan migrate --force --no-interaction 2>&1)
+  CODE=$?
+  set -e
 
-if [ $CODE -ne 0 ]; then
-  echo "$OUT"
-  exit $CODE
+  if [ $CODE -ne 0 ]; then
+    echo "$OUT"
+    echo "AVISO: migrations falharam, mas o container vai continuar para evitar restart loop."
+    # NÃO derruba o container
+  else
+    echo "DB: migrations OK"
+  fi
 else
-  echo "DB: migrations OK"
+  echo "INFO RUN_MIGRATIONS!=1 -> pulando migrations."
 fi
 
 echo "=================================================="
