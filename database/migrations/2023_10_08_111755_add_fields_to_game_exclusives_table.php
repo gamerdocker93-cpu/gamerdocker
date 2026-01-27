@@ -8,23 +8,18 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Se a tabela não existe, NÃO tem o que alterar.
-        if (!Schema::hasTable('game_exclusives')) {
-            return;
-        }
-
-        Schema::table('game_exclusives', function (Blueprint $table) {
-            // Adiciona somente se ainda não existir (evita crash em re-deploy)
-            if (!Schema::hasColumn('game_exclusives', 'loseResults')) {
+        // tabela correta no seu MySQL da Railway é "games"
+        Schema::table('games', function (Blueprint $table) {
+            if (!Schema::hasColumn('games', 'loseResults')) {
                 $table->text('loseResults')->nullable();
             }
-            if (!Schema::hasColumn('game_exclusives', 'demoWinResults')) {
+            if (!Schema::hasColumn('games', 'demoWinResults')) {
                 $table->text('demoWinResults')->nullable();
             }
-            if (!Schema::hasColumn('game_exclusives', 'winResults')) {
+            if (!Schema::hasColumn('games', 'winResults')) {
                 $table->text('winResults')->nullable();
             }
-            if (!Schema::hasColumn('game_exclusives', 'iconsJson')) {
+            if (!Schema::hasColumn('games', 'iconsJson')) {
                 $table->text('iconsJson')->nullable();
             }
         });
@@ -32,22 +27,17 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (!Schema::hasTable('game_exclusives')) {
-            return;
-        }
-
-        Schema::table('game_exclusives', function (Blueprint $table) {
-            // Remove só se existir
-            if (Schema::hasColumn('game_exclusives', 'loseResults')) {
+        Schema::table('games', function (Blueprint $table) {
+            if (Schema::hasColumn('games', 'loseResults')) {
                 $table->dropColumn('loseResults');
             }
-            if (Schema::hasColumn('game_exclusives', 'demoWinResults')) {
+            if (Schema::hasColumn('games', 'demoWinResults')) {
                 $table->dropColumn('demoWinResults');
             }
-            if (Schema::hasColumn('game_exclusives', 'winResults')) {
+            if (Schema::hasColumn('games', 'winResults')) {
                 $table->dropColumn('winResults');
             }
-            if (Schema::hasColumn('game_exclusives', 'iconsJson')) {
+            if (Schema::hasColumn('games', 'iconsJson')) {
                 $table->dropColumn('iconsJson');
             }
         });
