@@ -6,25 +6,30 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        if (Schema::hasTable('sub_affiliates')) {
+            return;
+        }
+
         Schema::create('sub_affiliates', function (Blueprint $table) {
             $table->id();
-            $table->integer('affiliate_id')->unsigned()->index();
-            $table->foreign('affiliate_id')->references('id')->on('users')->cascadeOnDelete();
-            $table->integer('user_id')->unsigned()->index();
-            $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete();
+
+            // CORREÇÃO: precisa bater com users.id (bigint unsigned)
+            $table->unsignedBigInteger('affiliate_id');
+            $table->index('affiliate_id');
+            $table->foreign('affiliate_id')->references('id')->on('users')->onDelete('cascade');
+
+            // CORREÇÃO: precisa bater com users.id (bigint unsigned)
+            $table->unsignedBigInteger('user_id');
+            $table->index('user_id');
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+
             $table->tinyInteger('status')->default(0);
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('sub_affiliates');
