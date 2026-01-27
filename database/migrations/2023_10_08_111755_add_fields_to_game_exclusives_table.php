@@ -6,29 +6,50 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        // Se a tabela não existe, NÃO tem o que alterar.
+        if (!Schema::hasTable('game_exclusives')) {
+            return;
+        }
+
         Schema::table('game_exclusives', function (Blueprint $table) {
-            $table->text('loseResults');
-            $table->text('demoWinResults');
-            $table->text('winResults');
-            $table->text('iconsJson');
+            // Adiciona somente se ainda não existir (evita crash em re-deploy)
+            if (!Schema::hasColumn('game_exclusives', 'loseResults')) {
+                $table->text('loseResults')->nullable();
+            }
+            if (!Schema::hasColumn('game_exclusives', 'demoWinResults')) {
+                $table->text('demoWinResults')->nullable();
+            }
+            if (!Schema::hasColumn('game_exclusives', 'winResults')) {
+                $table->text('winResults')->nullable();
+            }
+            if (!Schema::hasColumn('game_exclusives', 'iconsJson')) {
+                $table->text('iconsJson')->nullable();
+            }
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
+        if (!Schema::hasTable('game_exclusives')) {
+            return;
+        }
+
         Schema::table('game_exclusives', function (Blueprint $table) {
-            $table->dropColumn('loseResults');
-            $table->dropColumn('demoWinResults');
-            $table->dropColumn('winResults');
-            $table->dropColumn('iconsJson');
+            // Remove só se existir
+            if (Schema::hasColumn('game_exclusives', 'loseResults')) {
+                $table->dropColumn('loseResults');
+            }
+            if (Schema::hasColumn('game_exclusives', 'demoWinResults')) {
+                $table->dropColumn('demoWinResults');
+            }
+            if (Schema::hasColumn('game_exclusives', 'winResults')) {
+                $table->dropColumn('winResults');
+            }
+            if (Schema::hasColumn('game_exclusives', 'iconsJson')) {
+                $table->dropColumn('iconsJson');
+            }
         });
     }
 };
