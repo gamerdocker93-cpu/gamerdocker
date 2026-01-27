@@ -6,24 +6,32 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        if (Schema::hasTable('reports')) {
+            return;
+        }
+
         Schema::create('reports', function (Blueprint $table) {
             $table->id();
-            $table->integer('user_id')->unsigned();
+
+            // Compatível com users.id
+            $table->unsignedBigInteger('user_id');
+            $table->index('user_id');
+
             $table->string('description');
             $table->string('page_url');
             $table->string('page_action');
+
             $table->timestamps();
+
+            $table->foreign('user_id')
+                ->references('id')
+                ->on('users')
+                ->onDelete('cascade');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('reports');
