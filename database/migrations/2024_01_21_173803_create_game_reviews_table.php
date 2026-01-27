@@ -6,29 +6,39 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        if (Schema::hasTable('game_reviews')) {
+            return;
+        }
+
         Schema::create('game_reviews', function (Blueprint $table) {
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('game_id');
-            // Adicione outras colunas, se necessário
-            $table->timestamps();
 
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-            $table->foreign('game_id')->references('id')->on('games')->onDelete('cascade');
+            $table->index('user_id');
+            $table->index('game_id');
 
             $table->string('description');
             $table->integer('rating')->default(0);
-            $table->unique(['user_id', 'game_id']); // Garante que um jogo só pode ser favorito uma vez por usuário
+
+            $table->timestamps();
+
+            $table->foreign('user_id')
+                ->references('id')
+                ->on('users')
+                ->onDelete('cascade');
+
+            $table->foreign('game_id')
+                ->references('id')
+                ->on('games')
+                ->onDelete('cascade');
+
+            // Chave primária composta (um review por usuário/jogo)
+            $table->primary(['user_id', 'game_id']);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('game_reviews');
