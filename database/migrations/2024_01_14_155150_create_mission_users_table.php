@@ -6,17 +6,25 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        if (Schema::hasTable('mission_users')) {
+            return;
+        }
+
         Schema::create('mission_users', function (Blueprint $table) {
             $table->id();
-            $table->integer('user_id')->unsigned()->index();
+
+            // CORREÇÃO: compatível com users.id (bigint unsigned)
+            $table->unsignedBigInteger('user_id');
+            $table->index('user_id');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-            $table->integer('mission_id')->unsigned()->index();
+
+            // CORREÇÃO: compatível com missions.id (provavelmente bigint)
+            $table->unsignedBigInteger('mission_id');
+            $table->index('mission_id');
             $table->foreign('mission_id')->references('id')->on('missions')->onDelete('cascade');
+
             $table->bigInteger('rounds')->default(0);
             $table->decimal('rewards', 10, 2)->default(0);
             $table->tinyInteger('status')->default(0);
@@ -24,9 +32,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('mission_users');
