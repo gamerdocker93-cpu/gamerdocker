@@ -8,18 +8,38 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('games', function (Blueprint $table) {
+        // Se a tabela não existe nesse ambiente, não quebra o deploy
+        if (!Schema::hasTable('games')) {
+            return;
+        }
+
+        // Calcula antes (mais seguro)
+        $addLoseResults    = !Schema::hasColumn('games', 'loseResults');
+        $addDemoWinResults = !Schema::hasColumn('games', 'demoWinResults');
+        $addWinResults     = !Schema::hasColumn('games', 'winResults');
+        $addIconsJson      = !Schema::hasColumn('games', 'iconsJson');
+
+        if (!$addLoseResults && !$addDemoWinResults && !$addWinResults && !$addIconsJson) {
+            return;
+        }
+
+        Schema::table('games', function (Blueprint $table) use (
+            $addLoseResults,
+            $addDemoWinResults,
+            $addWinResults,
+            $addIconsJson
+        ) {
             // deixa NULL pra não quebrar inserts antigos
-            if (!Schema::hasColumn('games', 'loseResults')) {
+            if ($addLoseResults) {
                 $table->text('loseResults')->nullable();
             }
-            if (!Schema::hasColumn('games', 'demoWinResults')) {
+            if ($addDemoWinResults) {
                 $table->text('demoWinResults')->nullable();
             }
-            if (!Schema::hasColumn('games', 'winResults')) {
+            if ($addWinResults) {
                 $table->text('winResults')->nullable();
             }
-            if (!Schema::hasColumn('games', 'iconsJson')) {
+            if ($addIconsJson) {
                 $table->text('iconsJson')->nullable();
             }
         });
@@ -27,11 +47,22 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('games', function (Blueprint $table) {
-            if (Schema::hasColumn('games', 'loseResults')) $table->dropColumn('loseResults');
-            if (Schema::hasColumn('games', 'demoWinResults')) $table->dropColumn('demoWinResults');
-            if (Schema::hasColumn('games', 'winResults')) $table->dropColumn('winResults');
-            if (Schema::hasColumn('games', 'iconsJson')) $table->dropColumn('iconsJson');
+        if (!Schema::hasTable('games')) {
+            return;
+        }
+
+        $drop = [];
+        if (Schema::hasColumn('games', 'loseResults')) $drop[] = 'loseResults';
+        if (Schema::hasColumn('games', 'demoWinResults')) $drop[] = 'demoWinResults';
+        if (Schema::hasColumn('games', 'winResults')) $drop[] = 'winResults';
+        if (Schema::hasColumn('games', 'iconsJson')) $drop[] = 'iconsJson';
+
+        if (empty($drop)) {
+            return;
+        }
+
+        Schema::table('games', function (Blueprint $table) use ($drop) {
+            $table->dropColumn($drop);
         });
     }
 };
