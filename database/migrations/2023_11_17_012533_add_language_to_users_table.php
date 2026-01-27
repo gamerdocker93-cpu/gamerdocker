@@ -6,23 +6,29 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-    public function up()
+    public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->string('language')->default('pt_BR'); // 'pt' é apenas um exemplo, defina o idioma padrão desejado
-        });
+        if (!Schema::hasTable('users')) {
+            return;
+        }
+
+        if (!Schema::hasColumn('users', 'language')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->string('language')->default('pt_BR');
+            });
+        }
     }
 
-    /**
-     * @return void
-     */
-    public function down()
+    public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn('language');
-        });
+        if (!Schema::hasTable('users')) {
+            return;
+        }
+
+        if (Schema::hasColumn('users', 'language')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->dropColumn('language');
+            });
+        }
     }
 };
