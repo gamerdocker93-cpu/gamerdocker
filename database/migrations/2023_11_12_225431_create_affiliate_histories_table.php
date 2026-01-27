@@ -6,17 +6,26 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        // Banco não virgem? Não tenta recriar
+        if (Schema::hasTable('affiliate_histories')) {
+            return;
+        }
+
         Schema::create('affiliate_histories', function (Blueprint $table) {
             $table->id();
-            $table->integer('user_id')->unsigned()->index();
+
+            // CORREÇÃO: precisa bater com users.id (bigint unsigned)
+            $table->unsignedBigInteger('user_id');
+            $table->index('user_id');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-            $table->integer('inviter')->unsigned()->index();
+
+            // CORREÇÃO: inviter também referencia users.id (bigint unsigned)
+            $table->unsignedBigInteger('inviter');
+            $table->index('inviter');
             $table->foreign('inviter')->references('id')->on('users')->onDelete('cascade');
+
             $table->decimal('commission', 20, 2)->default(0);
             $table->string('commission_type')->nullable();
             $table->tinyInteger('status')->default(0);
@@ -29,11 +38,10 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('affiliate_histories');
+        if (Schema::hasTable('affiliate_histories')) {
+            Schema::drop('affiliate_histories');
+        }
     }
 };
