@@ -6,15 +6,20 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        if (Schema::hasTable('ggr_games_fivers')) {
+            return;
+        }
+
         Schema::create('ggr_games_fivers', function (Blueprint $table) {
             $table->id();
-            $table->integer('user_id')->unsigned()->index();
+
+            // CORREÇÃO: precisa bater com users.id (bigint unsigned)
+            $table->unsignedBigInteger('user_id');
+            $table->index('user_id');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+
             $table->string('provider');
             $table->string('game');
             $table->decimal('balance_bet', 20, 2)->default(0);
@@ -24,11 +29,8 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('g_g_r_games_fivers');
+        Schema::dropIfExists('ggr_games_fivers');
     }
 };
