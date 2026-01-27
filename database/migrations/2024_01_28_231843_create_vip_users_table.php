@@ -6,27 +6,32 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        if (Schema::hasTable('vip_users')) {
+            return;
+        }
+
         Schema::create('vip_users', function (Blueprint $table) {
             $table->id();
-            $table->integer('user_id')->unsigned()->index();
+
+            // CORREÇÃO: compatível com users.id
+            $table->unsignedBigInteger('user_id');
+            $table->index('user_id');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-            $table->integer('vip_id')->unsigned()->index();
-            $table->foreign('vip_id')->references('id')->on('´vips')->onDelete('cascade');
-            $table->bigInteger('level');
-            $table->bigInteger('points');
+
+            // CORREÇÃO: compatível com vips.id
+            $table->unsignedBigInteger('vip_id');
+            $table->index('vip_id');
+            $table->foreign('vip_id')->references('id')->on('vips')->onDelete('cascade');
+
+            $table->bigInteger('level')->default(0);
+            $table->bigInteger('points')->default(0);
             $table->tinyInteger('status')->default(0);
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('vip_users');
