@@ -6,16 +6,26 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        // Se já existe (banco não virgem), não tenta recriar
+        if (Schema::hasTable('transactions')) {
+            return;
+        }
+
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
             $table->string('payment_id', 100);
-            $table->integer('user_id')->unsigned()->index();
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+
+            // CORREÇÃO: precisa bater com users.id (bigint unsigned)
+            $table->unsignedBigInteger('user_id');
+            $table->index('user_id');
+
+            $table->foreign('user_id')
+                ->references('id')
+                ->on('users')
+                ->onDelete('cascade');
+
             $table->string('payment_method')->nullable();
             $table->decimal('price', 20, 2)->default(0);
             $table->string('currency', 20)->default('usd');
@@ -24,11 +34,10 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('transactions');
+        if (Schema::hasTable('transactions')) {
+            Schema::drop('transactions');
+        }
     }
 };
