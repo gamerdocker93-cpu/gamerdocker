@@ -8,8 +8,13 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Banco não virgem? Não tenta recriar
+        // Se o banco não é virgem e a tabela já existe, não tenta recriar (evita 1050)
         if (Schema::hasTable('ggr_games_fivers')) {
+            return;
+        }
+
+        // Se users não existe por algum motivo no ambiente, evita quebrar deploy
+        if (!Schema::hasTable('users')) {
             return;
         }
 
@@ -19,7 +24,6 @@ return new class extends Migration
             // Compatível com users.id (bigint unsigned)
             $table->unsignedBigInteger('user_id');
             $table->index('user_id');
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
 
             $table->string('provider', 191);
             $table->string('game', 191);
@@ -29,11 +33,16 @@ return new class extends Migration
             $table->string('currency', 50)->default('BRL');
 
             $table->timestamps();
+
+            $table->foreign('user_id')
+                ->references('id')->on('users')
+                ->onDelete('cascade');
         });
     }
 
     public function down(): void
     {
+        // Nome certo (igual ao create)
         Schema::dropIfExists('ggr_games_fivers');
     }
 };
