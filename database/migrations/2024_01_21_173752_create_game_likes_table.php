@@ -6,27 +6,28 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        if (Schema::hasTable('game_likes')) {
+            return;
+        }
+
         Schema::create('game_likes', function (Blueprint $table) {
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('game_id');
-            // Adicione outras colunas, se necessário
             $table->timestamps();
+
+            $table->index('user_id');
+            $table->index('game_id');
 
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('game_id')->references('id')->on('games')->onDelete('cascade');
 
-            $table->unique(['user_id', 'game_id']); // Garante que um jogo só pode ser favorito uma vez por usuário
+            // Tabela pivô: chave primária composta (melhor que só unique)
+            $table->primary(['user_id', 'game_id']);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('game_likes');
