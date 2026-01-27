@@ -15,12 +15,10 @@ return new class extends Migration
         Schema::create('vip_users', function (Blueprint $table) {
             $table->id();
 
-            // CORREÇÃO: compatível com users.id
             $table->unsignedBigInteger('user_id');
             $table->index('user_id');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
 
-            // CORREÇÃO: compatível com vips.id
             $table->unsignedBigInteger('vip_id');
             $table->index('vip_id');
             $table->foreign('vip_id')->references('id')->on('vips')->onDelete('cascade');
@@ -28,7 +26,11 @@ return new class extends Migration
             $table->bigInteger('level')->default(0);
             $table->bigInteger('points')->default(0);
             $table->tinyInteger('status')->default(0);
+
             $table->timestamps();
+
+            // opcional: um registro vip por user (ajuste se seu negócio permitir múltiplos)
+            $table->unique(['user_id', 'vip_id']);
         });
     }
 
