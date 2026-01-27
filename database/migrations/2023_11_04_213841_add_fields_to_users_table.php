@@ -80,9 +80,12 @@ return new class extends Migration
             if ($addBanned) {
                 $table->tinyInteger('banned')->default(0);
             }
+
+            // IMPORTANTÍSSIMO: precisa bater com users.id (unsignedBigInteger)
             if ($addInviter) {
-                $table->integer('inviter')->nullable();
+                $table->unsignedBigInteger('inviter')->nullable()->index();
             }
+
             if ($addInviterCode) {
                 $table->string('inviter_code', 25)->nullable();
             }
@@ -102,12 +105,32 @@ return new class extends Migration
                 $table->string('status', 50)->default('active');
             }
         });
+
+        // FK do inviter separado (mais seguro em ambientes já existentes)
+        if ($addInviter) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->foreign('inviter', 'users_inviter_foreign')
+                    ->references('id')->on('users')
+                    ->nullOnDelete();
+            });
+        }
     }
 
     public function down(): void
     {
         if (!Schema::hasTable('users')) {
             return;
+        }
+
+        // Remove FK antes, se existir (evita erro ao dropar coluna)
+        if (Schema::hasColumn('users', 'inviter')) {
+            try {
+                Schema::table('users', function (Blueprint $table) {
+                    $table->dropForeign('users_inviter_foreign');
+                });
+            } catch (\Throwable $e) {
+                // Se não existir/for outro nome, seguimos sem quebrar rollback
+            }
         }
 
         $cols = [];
