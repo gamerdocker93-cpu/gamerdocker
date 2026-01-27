@@ -6,15 +6,15 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        if (Schema::hasTable('wallets')) {
+            return;
+        }
+
         Schema::create('wallets', function (Blueprint $table) {
             $table->id();
-            $table->integer('user_id')->unsigned()->index();
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            $table->unsignedBigInteger('user_id');
             $table->string('currency', 20);
             $table->string('symbol', 5);
             $table->decimal('balance', 20, 2)->default(0);
@@ -22,20 +22,21 @@ return new class extends Migration
             $table->decimal('balance_bonus_rollover', 20, 2)->default(0);
             $table->decimal('balance_deposit_rollover', 20, 2)->default(0);
             $table->decimal('balance_bonus', 20, 2)->default(0);
-            $table->decimal('balance_cryptocurrency', 20, 8)->default(0);
-            $table->decimal('balance_demo', 20, 8)->default(0);
+            $table->decimal('balance_cryptocurrency', 20, 2)->default(0);
+            $table->decimal('balance_demo', 20, 2)->default(0);
             $table->decimal('refer_rewards', 20, 2)->default(0);
-            $table->boolean('hide_balance')->default(false);
-            $table->boolean('active')->default(false);
+            $table->tinyInteger('hide_balance')->default(0);
+            $table->tinyInteger('active')->default(1);
             $table->timestamps();
+
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('wallets');
+        if (Schema::hasTable('wallets')) {
+            Schema::drop('wallets');
+        }
     }
 };
