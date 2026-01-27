@@ -1,65 +1,67 @@
-# =========================
+# ---------------------------
 # 1) Build dos assets (Vite)
-# =========================
+# ---------------------------
 FROM node:18-alpine AS build-assets
 WORKDIR /app
+
 COPY package*.json ./
 RUN npm ci
+
 COPY . .
 RUN npm run build
 
-# =========================
-# 2) PHP + Nginx (produção)
-# =========================
+
+# ---------------------------
+# 2) PHP + Nginx (Railway)
+# ---------------------------
 FROM php:8.2-fpm
 
-ENV COMPOSER_ALLOW_SUPERUSER=1 \
-    COMPOSER_HOME=/tmp
-
+# Dependências do sistema + extensões PHP
 RUN apt-get update && apt-get install -y \
     nginx \
+    curl \
+    unzip \
+    git \
     libicu-dev \
     libzip-dev \
-    zip unzip git curl \
-    libpng-dev libjpeg-dev libfreetype6-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
     bash \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo_mysql intl zip bcmath gd \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+  && docker-php-ext-configure gd --with-freetype --with-jpeg \
+  && docker-php-ext-install pdo_mysql intl zip bcmath gd \
+  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# php-fpm via TCP (127.0.0.1:9000)
+# php-fpm via TCP (Railway + Nginx)
 RUN sed -i 's|listen = .*|listen = 127.0.0.1:9000|' /usr/local/etc/php-fpm.d/zz-docker.conf
 
 WORKDIR /var/www/html
 
-# Composer (instalação confiável)
-RUN curl -sS https://getcomposer.org/installer -o /tmp/composer-setup.php \
-    && php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer \
-    && rm -f /tmp/composer-setup.php
+# Instalar Composer (garante que existe)
+RUN curl -sS https://getcomposer.org/installer | php -- \
+    --install-dir=/usr/local/bin --filename=composer
 
-# Copia apenas composer.* para aproveitar cache
+# Copia primeiro composer.json/lock para cache de dependências
 COPY composer.json composer.lock ./
 
-# Cria diretórios essenciais antes do composer
-RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache
+# IMPORTANTE:
+# - --no-scripts evita rodar "artisan package:discover" durante o build
+#   (isso costuma quebrar build por causa de cache path/.env/etc)
+ENV COMPOSER_ALLOW_SUPERUSER=1
+RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader --no-scripts
 
-# Instala dependências SEM scripts (evita chamar artisan no build)
-RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --no-scripts
-
-# Copia o projeto todo
+# Agora copia o restante do projeto
 COPY . .
 
-# Copia assets do Vite
+# Copia os assets buildados do Vite
 COPY --from=build-assets /app/public/build ./public/build
 
-# Limpa caches e ajusta permissões
-RUN rm -f bootstrap/cache/*.php || true \
-    && rm -rf storage/framework/cache/data/* storage/framework/views/* || true \
-    && chown -R www-data:www-data /var/www/html \
-    && chmod -R 775 storage bootstrap/cache
+# Cria pastas necessárias e ajusta permissões
+RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache \
+ && chown -R www-data:www-data /var/www/html \
+ && chmod -R 775 storage bootstrap/cache
 
-# Nginx conf
+# Nginx conf (porta será ajustada no start.sh)
 RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/conf.d/* \
  && printf '%s\n' \
 'server {' \
@@ -83,12 +85,13 @@ echo "=================================================="
 echo "INICIANDO APLICACAO LARAVEL"
 echo "=================================================="
 
-# Ajusta porta (Railway usa PORT)
+# Ajusta porta Railway
 sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf
 
-# Garantir diretórios
+# Garante diretórios (caso volume/railway mude permissões)
 mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache
-chmod -R 775 storage bootstrap/cache || true
+chown -R www-data:www-data /var/www/html
+chmod -R 775 storage bootstrap/cache
 
 echo ""
 echo "VERIFICACAO:"
@@ -96,6 +99,7 @@ echo "  APP_CIPHER: ${APP_CIPHER}"
 echo "  APP_KEY: ${APP_KEY}"
 echo ""
 
+# Validar APP_KEY
 if [ -z "${APP_KEY}" ]; then
   echo "ERRO: APP_KEY nao definido nas Variables da Railway."
   exit 1
@@ -104,29 +108,28 @@ fi
 # remove aspas acidentais
 APP_KEY_CLEAN=$(echo -n "${APP_KEY}" | sed 's/^"//; s/"$//; s/^\x27//; s/\x27$//')
 
-# mede bytes corretamente
+# >>> CORREÇÃO IMPORTANTE: passar variável p/ PHP como ENV (K=... php -r)
 if echo "${APP_KEY_CLEAN}" | grep -q '^base64:'; then
   KEY_B64="${APP_KEY_CLEAN#base64:}"
-  KEY_LEN=$(K="$KEY_B64" php -r '$k=base64_decode(getenv("K"), true); echo $k===false ? -1 : strlen($k);')
+  KEY_LEN=$(K="${KEY_B64}" php -r '$k=base64_decode(getenv("K"), true); echo $k===false ? -1 : strlen($k);')
 else
-  KEY_LEN=$(K="$APP_KEY_CLEAN" php -r 'echo strlen(getenv("K"));')
+  KEY_LEN=$(K="${APP_KEY_CLEAN}" php -r 'echo strlen(getenv("K"));')
 fi
 
 echo "  APP_KEY bytes: ${KEY_LEN}"
-
-# valida para aes-256-cbc (32 bytes)
 if [ "${APP_CIPHER}" = "aes-256-cbc" ] && [ "${KEY_LEN}" != "32" ]; then
   echo "ERRO: APP_KEY invalido. Para aes-256-cbc precisa 32 bytes (base64: + 32 bytes)."
   exit 1
 fi
 
-# roda scripts do Laravel agora (runtime) - seguro
-php artisan package:discover --ansi || true
-
-# limpa caches
+# Limpa caches (sem derrubar)
 php artisan config:clear >/dev/null 2>&1 || true
 php artisan cache:clear  >/dev/null 2>&1 || true
 php artisan view:clear   >/dev/null 2>&1 || true
+
+echo ""
+echo "INFO Rodando package:discover (runtime)..."
+php artisan package:discover --ansi >/dev/null 2>&1 || true
 
 echo ""
 echo "TESTE DE CRIPTOGRAFIA:"
@@ -152,7 +155,7 @@ set -e
 
 if [ $CODE -ne 0 ]; then
   echo "$OUT"
-  # ignora "tabela já existe"
+  # não derruba deploy se for "tabela já existe"
   echo "$OUT" | grep -q "Base table or view already exists" && echo "DB: tabela ja existe (ok)" || exit $CODE
 else
   echo "DB: migrations OK"
@@ -163,7 +166,7 @@ echo "APLICACAO PRONTA"
 echo "=================================================="
 
 php-fpm -D
-exec nginx -g "daemon off;"
+nginx -g "daemon off;"
 SCRIPT_END
 
 RUN chmod +x /usr/local/bin/start.sh
