@@ -155,6 +155,18 @@ ls -la /var/www/html/bootstrap/cache/config.php 2>/dev/null || echo "config.php 
 echo ""
 echo "5) php-fpm loaded conf / clear_env"
 php-fpm -tt 2>&1 | grep -i -n "loaded configuration\|include\|pool\|clear_env" || true
+
+echo ""
+echo "6) CHECANDO config/app.php (key/cipher reais do arquivo)"
+php -r '$c=require "config/app.php"; echo "config/app.php key=".$c["key"].PHP_EOL; echo "config/app.php cipher=".$c["cipher"].PHP_EOL;'
+grep -n "['\"]key['\"]\s*=>" /var/www/html/config/app.php || true
+grep -n "APP_KEY" /var/www/html/config/app.php || true
+
+echo ""
+echo "7) PROCURANDO OVERRIDE de app.key (app/ e config/)"
+grep -R --line-number "app\.key" /var/www/html/app /var/www/html/config 2>/dev/null | head -n 120 || true
+grep -R --line-number "config\s*\(\s*\[\s*['\"]app\.key['\"]" /var/www/html/app /var/www/html/config 2>/dev/null | head -n 120 || true
+
 echo "================ FIM DIAG ===================="
 echo ""
 
