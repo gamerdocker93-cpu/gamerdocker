@@ -102,18 +102,28 @@ if printf "%s" "$APP_KEY_CLEAN" | grep -q '^base64:'; then
 else
   KEY_LEN=$(php -r 'echo strlen($argv[1]);' "$APP_KEY_CLEAN")
 fi
+
 export APP_KEY="$APP_KEY_CLEAN"
 export APP_CIPHER="${APP_CIPHER:-aes-256-cbc}"
+
 echo "  APP_KEY bytes: ${KEY_LEN}"
 if [ "${APP_CIPHER}" = "aes-256-cbc" ] && [ "${KEY_LEN}" != "32" ]; then
   echo "ERRO: APP_KEY invalido. Para aes-256-cbc precisa 32 bytes (base64: + 32 bytes)."
   exit 1
 fi
 
-# limpa caches
-php artisan config:clear >/dev/null 2>&1 || true
-php artisan cache:clear  >/dev/null 2>&1 || true
-php artisan view:clear   >/dev/null 2>&1 || true
+# ==================================================
+# BLINDAGEM (ADICIONADO): remove caches travados
+# ==================================================
+echo "LIMPANDO CACHE ANTIGO (bootstrap/cache) ..."
+rm -f bootstrap/cache/config.php bootstrap/cache/services.php bootstrap/cache/packages.php 2>/dev/null || true
+rm -f bootstrap/cache/*.php 2>/dev/null || true
+
+# limpa caches do Laravel (sem derrubar)
+php artisan optimize:clear >/dev/null 2>&1 || true
+php artisan config:clear   >/dev/null 2>&1 || true
+php artisan cache:clear    >/dev/null 2>&1 || true
+php artisan view:clear     >/dev/null 2>&1 || true
 
 # =========================
 # Migrations (sem loop)
