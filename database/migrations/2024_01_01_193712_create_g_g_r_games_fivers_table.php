@@ -8,20 +8,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Se o banco não é virgem e a tabela já existe, não tenta recriar (evita 1050)
+        // Banco não virgem? não tenta recriar
         if (Schema::hasTable('ggr_games_fivers')) {
-            return;
-        }
-
-        // Se users não existe por algum motivo no ambiente, evita quebrar deploy
-        if (!Schema::hasTable('users')) {
             return;
         }
 
         Schema::create('ggr_games_fivers', function (Blueprint $table) {
             $table->id();
 
-            // Compatível com users.id (bigint unsigned)
+            // compatível com users.id (bigint unsigned)
             $table->unsignedBigInteger('user_id');
             $table->index('user_id');
 
@@ -42,7 +37,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        // Nome certo (igual ao create)
-        Schema::dropIfExists('ggr_games_fivers');
+        Schema::dropIfExists('ggr_games_fivers'); // <- nome certo
     }
 };
