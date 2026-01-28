@@ -18,38 +18,46 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-install pdo_mysql intl zip bcmath gd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# ==========================================
+# FORÇA PHP-FPM A NÃO LIMPAR VARIÁVEIS ENV
+# (RESOLVE BUG DO APP_KEY)
+# ==========================================
+RUN sed -i 's/;clear_env = no/clear_env = no/g; s/clear_env = yes/clear_env = no/g' /usr/local/etc/php-fpm.d/www.conf
+
 # php-fpm via TCP
 RUN sed -i 's|listen = .*|listen = 127.0.0.1:9000|' /usr/local/etc/php-fpm.d/zz-docker.conf
 
 WORKDIR /var/www/html
 
-# Composer (sem depender de curl/wget)
+# Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# garante diretórios do Laravel (evita “Please provide a valid cache path.”)
+# garante diretórios do Laravel
 RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache \
  && chmod -R 775 storage bootstrap/cache
 
-# melhor cache do composer (instala deps sem scripts para não precisar do artisan no build)
+# deps PHP
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader --no-scripts
 
-# copia o projeto
+# copia projeto
 COPY . .
 
-# agora que o projeto existe, pode rodar scripts
+# autoload
 RUN composer dump-autoload -o \
  && php artisan package:discover --ansi || true
 
-# assets do Vite
+# assets Vite
 COPY --from=build-assets /app/public/build ./public/build
 
+# limpa caches build
 RUN rm -f bootstrap/cache/*.php && \
     rm -rf storage/framework/cache/data/* && \
     rm -rf storage/framework/views/*
 
 RUN chown -R www-data:www-data /var/www/html && chmod -R 775 storage bootstrap/cache
 
+# nginx
 RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*
 RUN printf '%s\n' \
 'server {' \
@@ -64,10 +72,13 @@ RUN printf '%s\n' \
 '  }' \
 '}' > /etc/nginx/conf.d/default.conf
 
-# ---- CACHEBUST: mude no Railway (ex: 2,3,4) para forçar rebuild e evitar cache do start.sh
+# cachebust
 ARG CACHEBUST=1
 RUN echo "CACHEBUST=$CACHEBUST"
 
+# ==========================================
+# START.SH
+# ==========================================
 RUN cat > /usr/local/bin/start.sh << 'SCRIPT_END'
 #!/bin/bash
 set -e
@@ -76,7 +87,7 @@ echo "=================================================="
 echo "INICIANDO APLICACAO LARAVEL"
 echo "=================================================="
 
-# Ajusta porta Railway
+# Porta Railway
 sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf
 
 echo ""
@@ -86,47 +97,49 @@ echo "  APP_KEY: ${APP_KEY}"
 echo ""
 
 if [ -z "${APP_KEY}" ]; then
-  echo "ERRO: APP_KEY nao definido nas Variables da Railway."
+  echo "ERRO: APP_KEY nao definido."
   exit 1
 fi
 
-# Remove aspas + remove \r \n + remove espaços nas pontas (xargs)
+# Limpa aspas e lixo
 APP_KEY_CLEAN=$(printf "%s" "$APP_KEY" \
   | sed 's/^"//; s/"$//; s/^\x27//; s/\x27$//' \
   | tr -d '\r\n' \
   | xargs)
 
+# Calcula bytes
 if printf "%s" "$APP_KEY_CLEAN" | grep -q '^base64:'; then
   KEY_B64="${APP_KEY_CLEAN#base64:}"
-  KEY_LEN=$(php -r '$k=base64_decode($argv[1], true); echo ($k===false) ? 0 : strlen($k);' "$KEY_B64")
+  KEY_LEN=$(php -r '$k=base64_decode($argv[1], true); echo ($k===false)?0:strlen($k);' "$KEY_B64")
 else
   KEY_LEN=$(php -r 'echo strlen($argv[1]);' "$APP_KEY_CLEAN")
 fi
 
+# EXPORTA PARA O PHP
 export APP_KEY="$APP_KEY_CLEAN"
 export APP_CIPHER="${APP_CIPHER:-aes-256-cbc}"
 
+# ==========================================
+# REMOVE .ENV INTERNO (EVITA SOBRESCRITA)
+# ==========================================
+rm -f /var/www/html/.env 2>/dev/null || true
+
 echo "  APP_KEY bytes: ${KEY_LEN}"
+
 if [ "${APP_CIPHER}" = "aes-256-cbc" ] && [ "${KEY_LEN}" != "32" ]; then
-  echo "ERRO: APP_KEY invalido. Para aes-256-cbc precisa 32 bytes (base64: + 32 bytes)."
+  echo "ERRO: APP_KEY invalido (precisa 32 bytes)."
   exit 1
 fi
 
-# ==================================================
-# BLINDAGEM (ADICIONADO): remove caches travados
-# ==================================================
-echo "LIMPANDO CACHE ANTIGO (bootstrap/cache) ..."
-rm -f bootstrap/cache/config.php bootstrap/cache/services.php bootstrap/cache/packages.php 2>/dev/null || true
+# Limpa caches runtime
 rm -f bootstrap/cache/*.php 2>/dev/null || true
 
-# limpa caches do Laravel (sem derrubar)
-php artisan optimize:clear >/dev/null 2>&1 || true
-php artisan config:clear   >/dev/null 2>&1 || true
-php artisan cache:clear    >/dev/null 2>&1 || true
-php artisan view:clear     >/dev/null 2>&1 || true
+php artisan config:clear >/dev/null 2>&1 || true
+php artisan cache:clear  >/dev/null 2>&1 || true
+php artisan view:clear   >/dev/null 2>&1 || true
 
 # =========================
-# Migrations (sem loop)
+# MIGRATIONS
 # =========================
 if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
   echo "INFO Running migrations..."
@@ -137,13 +150,12 @@ if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
 
   if [ $CODE -ne 0 ]; then
     echo "$OUT"
-    echo "AVISO: migrations falharam, mas o container vai continuar para evitar restart loop."
-    # NÃO derruba o container
+    echo "AVISO: migrations falharam."
   else
     echo "DB: migrations OK"
   fi
 else
-  echo "INFO RUN_MIGRATIONS!=1 -> pulando migrations."
+  echo "INFO RUN_MIGRATIONS!=1"
 fi
 
 echo "=================================================="
