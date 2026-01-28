@@ -120,6 +120,45 @@ export APP_KEY="$APP_KEY_CLEAN"
 export APP_CIPHER="${APP_CIPHER:-aes-256-cbc}"
 
 # ==========================================
+# DIAGNOSTICO (ENV x LARAVEL x FPM)
+# ==========================================
+echo ""
+echo "================ DIAG RUNTIME ================"
+echo "SHELL APP_KEY (curto): $(printf '%s' "$APP_KEY" | cut -c1-25)..."
+echo "SHELL APP_CIPHER: $APP_CIPHER"
+
+echo ""
+echo "1) PHP getenv()"
+php -r 'echo "getenv(APP_ENV)=".getenv("APP_ENV").PHP_EOL;
+echo "getenv(APP_KEY)=".getenv("APP_KEY").PHP_EOL;
+echo "getenv(APP_CIPHER)=".getenv("APP_CIPHER").PHP_EOL;'
+
+echo ""
+echo "2) Laravel bootstrap -> config(app.key/app.cipher)"
+php -r 'require "vendor/autoload.php";
+$app=require "bootstrap/app.php";
+$k=$app->make(Illuminate\Contracts\Console\Kernel::class);
+$k->bootstrap();
+echo "config(app.key)=".config("app.key").PHP_EOL;
+echo "config(app.cipher)=".config("app.cipher").PHP_EOL;' || true
+
+echo ""
+echo "3) .env no container?"
+ls -la /var/www/html/.env* 2>/dev/null || echo "Nenhum .env encontrado"
+grep -n "APP_KEY\|APP_CIPHER\|APP_ENV" /var/www/html/.env 2>/dev/null || true
+
+echo ""
+echo "4) bootstrap/cache"
+ls -la /var/www/html/bootstrap/cache 2>/dev/null || true
+ls -la /var/www/html/bootstrap/cache/config.php 2>/dev/null || echo "config.php nao existe"
+
+echo ""
+echo "5) php-fpm loaded conf / clear_env"
+php-fpm -tt 2>&1 | grep -i -n "loaded configuration\|include\|pool\|clear_env" || true
+echo "================ FIM DIAG ===================="
+echo ""
+
+# ==========================================
 # REMOVE .ENV INTERNO (EVITA SOBRESCRITA)
 # ==========================================
 rm -f /var/www/html/.env 2>/dev/null || true
