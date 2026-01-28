@@ -4,17 +4,22 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// ============================================================
-// INJEÇÃO DE SEGURANÇA - FORÇA A CHAVE ORIGINAL
-// ============================================================
-putenv('APP_KEY=base64:OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ=');
-putenv('JWT_SECRET=OTY4N2Y1ZTM0YjI5ZDVhZDVmOTU1ZTM2ZDU4NTQ=');
-// ============================================================
+/*
+|--------------------------------------------------------------------------
+| IMPORTANTE (PRODUÇÃO):
+|--------------------------------------------------------------------------
+| NÃO defina APP_KEY/JWT_SECRET aqui.
+| Essas variáveis devem vir do ambiente (Railway Variables / .env).
+| Hardcode aqui sobrescreve o ENV correto e causa erro de cifra no Laravel.
+|
+| Removido:
+| putenv('APP_KEY=...');
+| putenv('JWT_SECRET=...');
+|
+*/
 
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
-
-// ... restante do arquivo
 
 define('LARAVEL_START', microtime(true));
 
