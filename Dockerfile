@@ -102,7 +102,8 @@ if printf "%s" "$APP_KEY_CLEAN" | grep -q '^base64:'; then
 else
   KEY_LEN=$(php -r 'echo strlen($argv[1]);' "$APP_KEY_CLEAN")
 fi
-
+export APP_KEY="$APP_KEY_CLEAN"
+export APP_CIPHER="${APP_CIPHER:-aes-256-cbc}"
 echo "  APP_KEY bytes: ${KEY_LEN}"
 if [ "${APP_CIPHER}" = "aes-256-cbc" ] && [ "${KEY_LEN}" != "32" ]; then
   echo "ERRO: APP_KEY invalido. Para aes-256-cbc precisa 32 bytes (base64: + 32 bytes)."
