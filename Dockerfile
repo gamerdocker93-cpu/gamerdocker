@@ -106,6 +106,12 @@ export APP_CIPHER="${APP_CIPHER:-aes-256-cbc}"
 # Evita sobrescrita por .env (se existir)
 rm -f /var/www/html/.env 2>/dev/null || true
 
+# ============================================================
+# BLINDAGEM VITE: Garante modo PROD (ignora hot files)
+# ============================================================
+rm -f /var/www/html/public/hot 2>/dev/null || true
+rm -f /var/www/html/public/build/hot 2>/dev/null || true
+
 echo ""
 echo "================ DIAG RUNTIME ================"
 echo "SHELL APP_KEY (curto): $(printf '%s' "$APP_KEY" | cut -c1-25)..."
@@ -151,7 +157,6 @@ php-fpm -tt 2>&1 | grep -i -n "loaded configuration\|include\|pool\|clear_env" |
 # ============================================================
 # 6) Scan opcional por chave antiga
 # Só roda se RUN_DIAG_KEYSCAN=1
-# (evita poluir logs e evita "false positive" por Dockerfile)
 # ============================================================
 echo ""
 if [ "${RUN_DIAG_KEYSCAN:-0}" = "1" ]; then
