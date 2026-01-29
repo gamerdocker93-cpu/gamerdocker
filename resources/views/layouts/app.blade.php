@@ -6,61 +6,14 @@
         <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
         @php
-            // GARANTE ARRAY SEMPRE (mesmo se Helper retornar null)
+            // ==========================
+            // BLINDAGEM CONTRA NULL
+            // ==========================
             $setting = \Helper::getSetting();
-            $setting = is_array($setting) ? $setting : (is_object($setting) ? (array) $setting : []);
+            $setting = is_array($setting) ? $setting : [];
 
             $custom = \Helper::getCustom();
-            $custom = is_array($custom) ? $custom : (is_object($custom) ? (array) $custom : []);
-
-            // Defaults seguros p/ não quebrar CSS
-            $defaults = [
-                'font_family_default'     => "'Roboto Condensed', sans-serif",
-
-                'primary_color'           => '#6D28D9',
-                'primary_opacity_color'   => 'rgba(109,40,217,0.3)',
-                'secundary_color'         => '#111827',
-
-                'gray_dark_color'         => '#111827',
-                'gray_light_color'        => '#D1D5DB',
-                'gray_medium_color'       => '#9CA3AF',
-                'gray_over_color'         => '#374151',
-
-                'title_color'             => '#FFFFFF',
-                'text_color'              => '#E5E7EB',
-                'sub_text_color'          => '#9CA3AF',
-                'placeholder_color'       => '#6B7280',
-
-                'background_color'        => '#0B0F19',
-                'background_base'         => '#0B0F19',
-                'background_base_dark'    => '#0B0F19',
-
-                'border_radius'           => '12px',
-
-                'input_primary'           => '#111827',
-                'input_primary_dark'      => '#0F172A',
-
-                'carousel_banners'        => '#111827',
-                'carousel_banners_dark'   => '#0F172A',
-
-                'sidebar_color'           => '#111827',
-                'sidebar_color_dark'      => '#0F172A',
-
-                'navtop_color'            => '#111827',
-                'navtop_color_dark'       => '#0F172A',
-
-                'side_menu'               => '#111827',
-                'side_menu_dark'          => '#0F172A',
-
-                'footer_color'            => '#111827',
-                'footer_color_dark'       => '#0F172A',
-
-                'card_color'              => '#111827',
-                'card_color_dark'         => '#0F172A',
-            ];
-
-            // mescla defaults -> custom (custom sobrescreve)
-            $custom = array_merge($defaults, $custom);
+            $custom = is_array($custom) ? $custom : [];
         @endphp
 
         @if(!empty($setting['software_favicon']))
@@ -70,74 +23,98 @@
         <link rel="stylesheet" href="{{ asset('assets/css/fontawesome.min.css') }}">
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700&family=Roboto+Condensed:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;1,100&display=swap" rel="stylesheet">
 
-        <title>{{ env('APP_NAME', 'Sistema') }}</title>
+        <title>{{ env('APP_NAME', 'Laravel') }}</title>
 
+        <!-- CSRF Token -->
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         <style>
             body{
-                font-family: {!! $custom['font_family_default'] !!};
+                font-family: {{ $custom['font_family_default'] ?? "'Roboto Condensed', sans-serif" }};
             }
             :root {
-                --ci-primary-color: {{ $custom['primary_color'] }};
-                --ci-primary-opacity-color: {{ $custom['primary_opacity_color'] }};
-                --ci-secundary-color: {{ $custom['secundary_color'] }};
-                --ci-gray-dark: {{ $custom['gray_dark_color'] }};
-                --ci-gray-light: {{ $custom['gray_light_color'] }};
-                --ci-gray-medium: {{ $custom['gray_medium_color'] }};
-                --ci-gray-over: {{ $custom['gray_over_color'] }};
-                --title-color: {{ $custom['title_color'] }};
-                --text-color: {{ $custom['text_color'] }};
-                --sub-text-color: {{ $custom['sub_text_color'] }};
-                --placeholder-color: {{ $custom['placeholder_color'] }};
-                --background-color: {{ $custom['background_color'] }};
+                --ci-primary-color: {{ $custom['primary_color'] ?? '#3b82f6' }};
+                --ci-primary-opacity-color: {{ $custom['primary_opacity_color'] ?? 'rgba(59,130,246,.5)' }};
+                --ci-secundary-color: {{ $custom['secundary_color'] ?? '#111827' }};
+                --ci-gray-dark: {{ $custom['gray_dark_color'] ?? '#111827' }};
+                --ci-gray-light: {{ $custom['gray_light_color'] ?? '#9ca3af' }};
+                --ci-gray-medium: {{ $custom['gray_medium_color'] ?? '#6b7280' }};
+                --ci-gray-over: {{ $custom['gray_over_color'] ?? '#374151' }};
+                --title-color: {{ $custom['title_color'] ?? '#ffffff' }};
+                --text-color: {{ $custom['text_color'] ?? '#d1d5db' }};
+                --sub-text-color: {{ $custom['sub_text_color'] ?? '#9ca3af' }};
+                --placeholder-color: {{ $custom['placeholder_color'] ?? '#6b7280' }};
+                --background-color: {{ $custom['background_color'] ?? '#0b0f19' }};
+
                 --standard-color: #1C1E22;
                 --shadow-color: #111415;
                 --page-shadow: linear-gradient(to right, #111415, rgba(17, 20, 21, 0));
                 --autofill-color: #f5f6f7;
                 --yellow-color: #FFBF39;
                 --yellow-dark-color: #d7a026;
-                --border-radius: {{ $custom['border_radius'] }};
 
-                --input-primary: {{ $custom['input_primary'] }};
-                --input-primary-dark: {{ $custom['input_primary_dark'] }};
+                --border-radius: {{ $custom['border_radius'] ?? '12px' }};
 
-                --carousel-banners: {{ $custom['carousel_banners'] }};
-                --carousel-banners-dark: {{ $custom['carousel_banners_dark'] }};
+                --tw-border-spacing-x: 0;
+                --tw-border-spacing-y: 0;
+                --tw-translate-x: 0;
+                --tw-translate-y: 0;
+                --tw-rotate: 0;
+                --tw-skew-x: 0;
+                --tw-skew-y: 0;
+                --tw-scale-x: 1;
+                --tw-scale-y: 1;
+                --tw-scroll-snap-strictness: proximity;
+                --tw-ring-offset-width: 0px;
+                --tw-ring-offset-color: #fff;
+                --tw-ring-color: rgba(59,130,246,.5);
+                --tw-ring-offset-shadow: 0 0 #0000;
+                --tw-ring-shadow: 0 0 #0000;
+                --tw-shadow: 0 0 #0000;
+                --tw-shadow-colored: 0 0 #0000;
 
-                --sidebar-color: {{ $custom['sidebar_color'] }};
-                --sidebar-color-dark: {{ $custom['sidebar_color_dark'] }};
+                --input-primary: {{ $custom['input_primary'] ?? '#111827' }};
+                --input-primary-dark: {{ $custom['input_primary_dark'] ?? '#0b1220' }};
 
-                --navtop-color: {{ $custom['navtop_color'] }};
-                --navtop-color-dark: {{ $custom['navtop_color_dark'] }};
+                --carousel-banners: {{ $custom['carousel_banners'] ?? '#111827' }};
+                --carousel-banners-dark: {{ $custom['carousel_banners_dark'] ?? '#0b1220' }};
 
-                --side-menu: {{ $custom['side_menu'] }};
-                --side-menu-dark: {{ $custom['side_menu_dark'] }};
+                --sidebar-color: {{ $custom['sidebar_color'] ?? '#111827' }} !important;
+                --sidebar-color-dark: {{ $custom['sidebar_color_dark'] ?? '#0b1220' }} !important;
 
-                --footer-color: {{ $custom['footer_color'] }};
-                --footer-color-dark: {{ $custom['footer_color_dark'] }};
+                /* (corrigido: faltava :) */
+                --navtop-color: {{ $custom['navtop_color'] ?? ($custom['sidebar_color'] ?? '#111827') }};
+                --navtop-color-dark: {{ $custom['navtop_color_dark'] ?? ($custom['sidebar_color_dark'] ?? '#0b1220') }};
 
-                --card-color: {{ $custom['card_color'] }};
-                --card-color-dark: {{ $custom['card_color_dark'] }};
+                --side-menu: {{ $custom['side_menu'] ?? '#ffffff' }};
+                --side-menu-dark: {{ $custom['side_menu_dark'] ?? '#ffffff' }};
+
+                --footer-color: {{ $custom['footer_color'] ?? '#111827' }};
+                --footer-color-dark: {{ $custom['footer_color_dark'] ?? '#0b1220' }};
+
+                --card-color: {{ $custom['card_color'] ?? '#111827' }};
+                --card-color-dark: {{ $custom['card_color_dark'] ?? '#0b1220' }};
             }
 
             .navtop-color{
-                background-color: {{ $custom['sidebar_color'] }} !important;
+                background-color: {{ $custom['sidebar_color'] ?? '#111827' }} !important;
             }
             :is(.dark .navtop-color) {
-                background-color: {{ $custom['sidebar_color_dark'] }} !important;
+                background-color: {{ $custom['sidebar_color_dark'] ?? '#0b1220' }} !important;
             }
 
             .bg-base {
-                background-color: {{ $custom['background_base'] }};
+                background-color: {{ $custom['background_base'] ?? '#0b0f19' }};
             }
             :is(.dark .bg-base) {
-                background-color: {{ $custom['background_base_dark'] }};
+                background-color: {{ $custom['background_base_dark'] ?? '#0b0f19' }};
             }
         </style>
 
         @if(!empty($custom['custom_css']))
-            <style>{!! $custom['custom_css'] !!}</style>
+            <style>
+                {!! $custom['custom_css'] !!}
+            </style>
         @endif
 
         @if(!empty($custom['custom_header']))
@@ -170,7 +147,9 @@
         </script>
 
         @if(!empty($custom['custom_js']))
-            <script>{!! $custom['custom_js'] !!}</script>
+            <script>
+                {!! $custom['custom_js'] !!}
+            </script>
         @endif
 
         @if(!empty($custom['custom_body']))
