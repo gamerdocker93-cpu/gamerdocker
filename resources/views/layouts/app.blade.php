@@ -5,21 +5,78 @@
         <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
         <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-        @php $setting = \Helper::getSetting() @endphp
+        @php
+            // GARANTE ARRAY SEMPRE (mesmo se Helper retornar null)
+            $setting = \Helper::getSetting();
+            $setting = is_array($setting) ? $setting : (is_object($setting) ? (array) $setting : []);
+
+            $custom = \Helper::getCustom();
+            $custom = is_array($custom) ? $custom : (is_object($custom) ? (array) $custom : []);
+
+            // Defaults seguros p/ não quebrar CSS
+            $defaults = [
+                'font_family_default'     => "'Roboto Condensed', sans-serif",
+
+                'primary_color'           => '#6D28D9',
+                'primary_opacity_color'   => 'rgba(109,40,217,0.3)',
+                'secundary_color'         => '#111827',
+
+                'gray_dark_color'         => '#111827',
+                'gray_light_color'        => '#D1D5DB',
+                'gray_medium_color'       => '#9CA3AF',
+                'gray_over_color'         => '#374151',
+
+                'title_color'             => '#FFFFFF',
+                'text_color'              => '#E5E7EB',
+                'sub_text_color'          => '#9CA3AF',
+                'placeholder_color'       => '#6B7280',
+
+                'background_color'        => '#0B0F19',
+                'background_base'         => '#0B0F19',
+                'background_base_dark'    => '#0B0F19',
+
+                'border_radius'           => '12px',
+
+                'input_primary'           => '#111827',
+                'input_primary_dark'      => '#0F172A',
+
+                'carousel_banners'        => '#111827',
+                'carousel_banners_dark'   => '#0F172A',
+
+                'sidebar_color'           => '#111827',
+                'sidebar_color_dark'      => '#0F172A',
+
+                'navtop_color'            => '#111827',
+                'navtop_color_dark'       => '#0F172A',
+
+                'side_menu'               => '#111827',
+                'side_menu_dark'          => '#0F172A',
+
+                'footer_color'            => '#111827',
+                'footer_color_dark'       => '#0F172A',
+
+                'card_color'              => '#111827',
+                'card_color_dark'         => '#0F172A',
+            ];
+
+            // mescla defaults -> custom (custom sobrescreve)
+            $custom = array_merge($defaults, $custom);
+        @endphp
+
         @if(!empty($setting['software_favicon']))
             <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('/storage/' . $setting['software_favicon']) }}">
         @endif
 
         <link rel="stylesheet" href="{{ asset('assets/css/fontawesome.min.css') }}">
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700&family=Roboto+Condensed:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;1,100&display=swap" rel="stylesheet">        <title>{{ env('APP_NAME') }}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700&family=Roboto+Condensed:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;1,100&display=swap" rel="stylesheet">
 
-        <!-- CSRF Token -->
+        <title>{{ env('APP_NAME', 'Sistema') }}</title>
+
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        @php $custom = \Helper::getCustom() @endphp
         <style>
             body{
-                font-family: {{ $custom['font_family_default'] ?? "'Roboto Condensed', sans-serif" }};
+                font-family: {!! $custom['font_family_default'] !!};
             }
             :root {
                 --ci-primary-color: {{ $custom['primary_color'] }};
@@ -41,23 +98,6 @@
                 --yellow-color: #FFBF39;
                 --yellow-dark-color: #d7a026;
                 --border-radius: {{ $custom['border_radius'] }};
-                --tw-border-spacing-x: 0;
-                --tw-border-spacing-y: 0;
-                --tw-translate-x: 0;
-                --tw-translate-y: 0;
-                --tw-rotate: 0;
-                --tw-skew-x: 0;
-                --tw-skew-y: 0;
-                --tw-scale-x: 1;
-                --tw-scale-y: 1;
-                --tw-scroll-snap-strictness: proximity;
-                --tw-ring-offset-width: 0px;
-                --tw-ring-offset-color: #fff;
-                --tw-ring-color: rgba(59,130,246,.5);
-                --tw-ring-offset-shadow: 0 0 #0000;
-                --tw-ring-shadow: 0 0 #0000;
-                --tw-shadow: 0 0 #0000;
-                --tw-shadow-colored: 0 0 #0000;
 
                 --input-primary: {{ $custom['input_primary'] }};
                 --input-primary-dark: {{ $custom['input_primary_dark'] }};
@@ -65,24 +105,22 @@
                 --carousel-banners: {{ $custom['carousel_banners'] }};
                 --carousel-banners-dark: {{ $custom['carousel_banners_dark'] }};
 
+                --sidebar-color: {{ $custom['sidebar_color'] }};
+                --sidebar-color-dark: {{ $custom['sidebar_color_dark'] }};
 
-                --sidebar-color: {{ $custom['sidebar_color'] }} !important;
-                --sidebar-color-dark: {{ $custom['sidebar_color_dark'] }} !important;
-
-
-                --navtop-color {{ $custom['navtop_color'] }};
+                --navtop-color: {{ $custom['navtop_color'] }};
                 --navtop-color-dark: {{ $custom['navtop_color_dark'] }};
 
-
-                --side-menu {{ $custom['side_menu'] }};
+                --side-menu: {{ $custom['side_menu'] }};
                 --side-menu-dark: {{ $custom['side_menu_dark'] }};
 
-                --footer-color {{ $custom['footer_color'] }};
+                --footer-color: {{ $custom['footer_color'] }};
                 --footer-color-dark: {{ $custom['footer_color_dark'] }};
 
-                --card-color {{ $custom['card_color'] }};
+                --card-color: {{ $custom['card_color'] }};
                 --card-color-dark: {{ $custom['card_color_dark'] }};
             }
+
             .navtop-color{
                 background-color: {{ $custom['sidebar_color'] }} !important;
             }
@@ -99,9 +137,7 @@
         </style>
 
         @if(!empty($custom['custom_css']))
-            <style>
-                {!! $custom['custom_css'] !!}
-            </style>
+            <style>{!! $custom['custom_css'] !!}</style>
         @endif
 
         @if(!empty($custom['custom_header']))
@@ -110,6 +146,7 @@
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
+
     <body color-theme="dark" class="bg-base text-gray-800 dark:text-gray-300 ">
         <div id="viperpro"></div>
 
@@ -122,7 +159,7 @@
             });
 
             window._token = '{{ csrf_token() }}';
-            //if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+
             if (localStorage.getItem('color-theme') === 'light') {
                 document.documentElement.classList.remove('dark')
                 document.documentElement.classList.add('light');
@@ -133,9 +170,7 @@
         </script>
 
         @if(!empty($custom['custom_js']))
-            <script>
-                {!! $custom['custom_js'] !!}
-            </script>
+            <script>{!! $custom['custom_js'] !!}</script>
         @endif
 
         @if(!empty($custom['custom_body']))
