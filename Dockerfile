@@ -148,12 +148,39 @@ echo ""
 echo "5) php-fpm loaded conf / clear_env"
 php-fpm -tt 2>&1 | grep -i -n "loaded configuration\|include\|pool\|clear_env" || true
 
+# ============================================================
+# 6) Scan opcional por chave antiga
+# Só roda se RUN_DIAG_KEYSCAN=1
+# (evita poluir logs e evita "false positive" por Dockerfile)
+# ============================================================
 echo ""
-echo "6) Procurando a chave antiga (9687f / OTY4N2Y1) e overrides de app.key"
-grep -R --line-number "9687f5e" /var/www/html 2>/dev/null | head -n 80 || true
-grep -R --line-number "OTY4N2Y1" /var/www/html 2>/dev/null | head -n 80 || true
-grep -R --line-number "app\.key" /var/www/html/app /var/www/html/config 2>/dev/null | head -n 120 || true
-grep -R --line-number "config\s*\(\s*\[\s*['\"]app\.key['\"]" /var/www/html/app /var/www/html/config 2>/dev/null | head -n 120 || true
+if [ "${RUN_DIAG_KEYSCAN:-0}" = "1" ]; then
+  echo "6) Procurando a chave antiga (9687f / OTY4N2Y1) e overrides de app.key"
+
+  grep -R --line-number \
+    --exclude=Dockerfile \
+    --exclude-dir=vendor \
+    --exclude-dir=node_modules \
+    "9687f5e" /var/www/html 2>/dev/null | head -n 80 || true
+
+  grep -R --line-number \
+    --exclude=Dockerfile \
+    --exclude-dir=vendor \
+    --exclude-dir=node_modules \
+    "OTY4N2Y1" /var/www/html 2>/dev/null | head -n 80 || true
+
+  grep -R --line-number \
+    --exclude-dir=vendor \
+    --exclude-dir=node_modules \
+    "app\.key" /var/www/html/app /var/www/html/config 2>/dev/null | head -n 120 || true
+
+  grep -R --line-number \
+    --exclude-dir=vendor \
+    --exclude-dir=node_modules \
+    "config\s*\(\s*\[\s*['\"]app\.key['\"]" /var/www/html/app /var/www/html/config 2>/dev/null | head -n 120 || true
+else
+  echo "6) Keyscan desativado (defina RUN_DIAG_KEYSCAN=1 para ativar)."
+fi
 
 echo "================ FIM DIAG ===================="
 echo ""
