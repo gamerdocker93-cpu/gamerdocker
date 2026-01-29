@@ -119,18 +119,20 @@
         {!! $custom['custom_header'] !!}
     @endif
 
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- FORÇANDO ASSETS DIRETOS DO MANIFEST --}}
+    <link rel="stylesheet" href="{{ asset('build/assets/app-74775e8f.css') }}">
+    <script type="module" src="{{ asset('build/assets/app-92d904c4.js') }}"></script>
 </head>
 
 <body color-theme="dark" class="bg-base text-gray-800 dark:text-gray-300">
-    {{-- DEBUG VISUAL: se você enxergar isso, a view está renderizando --}}
+    {{-- DEBUG VISUAL --}}
     <div style="padding:12px;font-size:14px;color:#fff;opacity:.7;">
         Layout carregado (Blade OK). Se a tela continuar vazia, é JS/Front não montando.
     </div>
 
     {{-- APP ROOT (SPA) --}}
     <div id="viperpro">
-        {{-- FALLBACK: se o JS não montar nada, pelo menos mostra algo --}}
+        {{-- FALLBACK --}}
         <div style="padding:12px;color:#fff;opacity:.85;">
             Carregando interface...
         </div>
