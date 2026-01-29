@@ -24,7 +24,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700&family=Roboto+Condensed:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;1,100&display=swap" rel="stylesheet">
 
     <title>{{ env('APP_NAME', 'Laravel') }}</title>
-
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <style>
@@ -119,9 +118,8 @@
         {!! $custom['custom_header'] !!}
     @endif
 
-    {{-- FORÇANDO ASSETS DIRETOS DO MANIFEST --}}
-    <link rel="stylesheet" href="{{ asset('build/assets/app-74775e8f.css') }}">
-    <script type="module" src="{{ asset('build/assets/app-92d904c4.js') }}"></script>
+    {{-- ✅ CORRETO (Laravel + Vite): usa o manifest automaticamente --}}
+    @vite(['resources/js/app.js', 'resources/css/app.css'])
 </head>
 
 <body color-theme="dark" class="bg-base text-gray-800 dark:text-gray-300">
@@ -130,18 +128,15 @@
         Layout carregado (Blade OK). Se a tela continuar vazia, é JS/Front não montando.
     </div>
 
-    {{-- APP ROOT (SPA) --}}
-    <div id="viperpro">
-        {{-- FALLBACK --}}
+    {{-- ✅ APP ROOT (SPA) --}}
+    <div id="app">
         <div style="padding:12px;color:#fff;opacity:.85;">
             Carregando interface...
         </div>
     </div>
 
-    {{-- PARA PÁGINAS QUE USAM LAYOUT COM SECTION --}}
     @yield('content')
 
-    {{-- PARA COMPONENTES/CONTEÚDO VIA $slot --}}
     @isset($slot)
         {{ $slot }}
     @endisset
@@ -175,23 +170,23 @@
         {!! $custom['custom_body'] !!}
     @endif
 
-<script>
-  window.addEventListener('error', function (e) {
-    document.body.insertAdjacentHTML('afterbegin',
-      '<div style="padding:12px;background:#7f1d1d;color:#fff;font-family:monospace;white-space:pre-wrap;">' +
-      'JS ERROR: ' + (e.message || 'unknown') + '\n' +
-      (e.filename || '') + ':' + (e.lineno || '') + ':' + (e.colno || '') +
-      '</div>'
-    );
-  });
+    <script>
+      window.addEventListener('error', function (e) {
+        document.body.insertAdjacentHTML('afterbegin',
+          '<div style="padding:12px;background:#7f1d1d;color:#fff;font-family:monospace;white-space:pre-wrap;">' +
+          'JS ERROR: ' + (e.message || 'unknown') + '\n' +
+          (e.filename || '') + ':' + (e.lineno || '') + ':' + (e.colno || '') +
+          '</div>'
+        );
+      });
 
-  window.addEventListener('unhandledrejection', function (e) {
-    document.body.insertAdjacentHTML('afterbegin',
-      '<div style="padding:12px;background:#7f1d1d;color:#fff;font-family:monospace;white-space:pre-wrap;">' +
-      'PROMISE REJECTION: ' + (e.reason ? (e.reason.message || String(e.reason)) : 'unknown') +
-      '</div>'
-    );
-  });
-</script>
+      window.addEventListener('unhandledrejection', function (e) {
+        document.body.insertAdjacentHTML('afterbegin',
+          '<div style="padding:12px;background:#7f1d1d;color:#fff;font-family:monospace;white-space:pre-wrap;">' +
+          'PROMISE REJECTION: ' + (e.reason ? (e.reason.message || String(e.reason)) : 'unknown') +
+          '</div>'
+        );
+      });
+    </script>
 </body>
 </html>
