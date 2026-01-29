@@ -14,8 +14,7 @@ import "vue-toastification/dist/index.css";
 import '@/index.css';
 
 import App from './App.vue';
-import {useAuthStore} from "@/Stores/Auth.js";
-
+import { useAuthStore } from "@/Stores/Auth.js";
 
 /**
  * APP
@@ -83,12 +82,12 @@ app.config.globalProperties.state = {
     },
     currencyUSD(value) {
         if (typeof value === 'number') {
-            return new Intl.NumberFormat('en-US',{
+            return new Intl.NumberFormat('en-US', {
                 currency: 'USD',
                 minimumFractionDigits: 2,
             }).format(value);
-        }else{
-            return new Intl.NumberFormat('en-US',{
+        } else {
+            return new Intl.NumberFormat('en-US', {
                 currency: 'USD',
                 minimumFractionDigits: 2,
             }).format(parseFloat(value));
@@ -107,9 +106,8 @@ app.config.globalProperties.state = {
 import axios from 'axios'
 import VueAxios from 'vue-axios'
 
-
 app.use(VueAxios, axios)
-app.provide('axios', app.config.globalProperties.axios)  // provide 'axios'
+app.provide('axios', app.config.globalProperties.axios) // provide 'axios'
 
 import VueFullscreen from 'vue-fullscreen'
 app.use(VueFullscreen)
@@ -118,14 +116,14 @@ app.use(VueFullscreen)
  * Toast
  */
 import Toast from "vue-toastification";
-const optionsToast = { }
+const optionsToast = {}
 app.use(Toast, optionsToast)
 
 /**
  * Router
  */
 import router from './Router';
-import {useSettingStore} from "@/Stores/SettingStore.js";
+import { useSettingStore } from "@/Stores/SettingStore.js";
 app.use(router);
 
 /// Directive
@@ -136,7 +134,7 @@ app.directive("maska", vMaska)
  * @type {Pinia}
  */
 const pinia = createPinia()
-pinia.use(({ store }) => { store.router = markRaw(router)})
+pinia.use(({ store }) => { store.router = markRaw(router) })
 app.use(pinia);
 
 app.use(i18nVue, {
@@ -156,13 +154,13 @@ app.use(i18nVue, {
     }
 })()
 
-if(localStorage.getItem('token')) {
+if (localStorage.getItem('token')) {
     (async () => {
         const auth = useAuthStore();
         try {
             auth.setIsAuth(true);
             const user = await auth.checkToken();
-            if(user !== undefined) {
+            if (user !== undefined) {
                 auth.setUser(user);
             }
 
@@ -173,4 +171,7 @@ if(localStorage.getItem('token')) {
     })()
 }
 
-app.mount('#viperpro');
+/**
+ * ✅ MOUNT CORRETO: se o Blade usa <div id="app">, tem que montar aqui.
+ */
+app.mount('#app');
