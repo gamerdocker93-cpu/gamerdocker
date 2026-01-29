@@ -1,7 +1,6 @@
 import './bootstrap';
 
 import { createApp, markRaw } from 'vue/dist/vue.esm-bundler';
-import { createRouter, createWebHistory } from 'vue-router';
 import { createPinia } from 'pinia';
 import { i18nVue } from 'laravel-vue-i18n';
 import { vMaska } from "maska";
@@ -22,82 +21,82 @@ import { useAuthStore } from "@/Stores/Auth.js";
 const app = createApp(App);
 
 app.config.globalProperties.state = {
-    platformName() {
-        return 'VIPERPRO';
-    },
-    dateFormatServer(date) {
-        const currentDate = new Date(date);
-        const year = currentDate.getFullYear();
-        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-        const day = String(currentDate.getDate()).padStart(2, '0');
+  platformName() {
+    return 'VIPERPRO';
+  },
+  dateFormatServer(date) {
+    const currentDate = new Date(date);
+    const year = currentDate.getFullYear();
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const day = String(currentDate.getDate()).padStart(2, '0');
 
-        return `${year}-${month}-${day}`; // Remove hífens do final
-    },
-    formatDate(dateTimeString) {
-        const date = new Date(dateTimeString);
-        const today = new Date();
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const dayAfterTomorrow = new Date(today);
-        dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
+    return `${year}-${month}-${day}`;
+  },
+  formatDate(dateTimeString) {
+    const date = new Date(dateTimeString);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dayAfterTomorrow = new Date(today);
+    dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
 
-        const options = { hour: '2-digit', minute: '2-digit' };
+    const options = { hour: '2-digit', minute: '2-digit' };
 
-        if (date.toDateString() === today.toDateString()) {
-            return `Hoje às ${date.toLocaleTimeString(document.documentElement.getAttribute("lang"), options)}`;
-        } else if (date.toDateString() === tomorrow.toDateString()) {
-            return `Amanhã às ${date.toLocaleTimeString(document.documentElement.getAttribute("lang"), options)}`;
-        } else if (date.toDateString() === dayAfterTomorrow.toDateString()) {
-            const dayOfWeek = new Intl.DateTimeFormat(document.documentElement.getAttribute("lang"), { weekday: 'long' }).format(date);
-            return `Na ${dayOfWeek} às ${date.toLocaleTimeString(document.documentElement.getAttribute("lang"), options)}`;
-        } else {
-            return `${date.toLocaleDateString(document.documentElement.getAttribute("lang"))} às ${date.toLocaleTimeString(document.documentElement.getAttribute("lang"), options)}`;
-        }
-    },
-    generateSlug(text) {
-        return text
-            .toString()
-            .toLowerCase()
-            .trim()
-            .replace(/\s+/g, '-') // Substitui espaços por hífen
-            .replace(/[^\w\-]+/g, '') // Remove caracteres especiais
-            .replace(/\-\-+/g, '-') // Substitui múltiplos hífens por um único hífen
-            .replace(/^-+/, '') // Remove hífens do início
-            .replace(/-+$/, ''); // Remove hífens do final
-    },
-    timeAgo(value) {
-        return moment(value).fromNow();
-    },
-    currencyFormat(value, currency) {
-        if (value === undefined || currency === undefined) {
-            currency = 'USD';
-        }
+    if (date.toDateString() === today.toDateString()) {
+      return `Hoje às ${date.toLocaleTimeString(document.documentElement.getAttribute("lang"), options)}`;
+    } else if (date.toDateString() === tomorrow.toDateString()) {
+      return `Amanhã às ${date.toLocaleTimeString(document.documentElement.getAttribute("lang"), options)}`;
+    } else if (date.toDateString() === dayAfterTomorrow.toDateString()) {
+      const dayOfWeek = new Intl.DateTimeFormat(document.documentElement.getAttribute("lang"), { weekday: 'long' }).format(date);
+      return `Na ${dayOfWeek} às ${date.toLocaleTimeString(document.documentElement.getAttribute("lang"), options)}`;
+    } else {
+      return `${date.toLocaleDateString(document.documentElement.getAttribute("lang"))} às ${date.toLocaleTimeString(document.documentElement.getAttribute("lang"), options)}`;
+    }
+  },
+  generateSlug(text) {
+    return text
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-') // espaços -> hífen
+      .replace(/[^\w\-]+/g, '') // remove especiais
+      .replace(/\-\-+/g, '-') // múltiplos hífens -> 1
+      .replace(/^-+/, '') // remove hífen do início
+      .replace(/-+$/, ''); // remove hífen do final
+  },
+  timeAgo(value) {
+    return moment(value).fromNow();
+  },
+  currencyFormat(value, currency) {
+    if (value === undefined || currency === undefined) {
+      currency = 'USD';
+    }
 
-        const options = {
-            style: 'currency',
-            currency: currency
-        };
+    const options = {
+      style: 'currency',
+      currency: currency
+    };
 
-        return value.toLocaleString(document.documentElement.getAttribute("lang"), options);
-    },
-    currencyUSD(value) {
-        if (typeof value === 'number') {
-            return new Intl.NumberFormat('en-US', {
-                currency: 'USD',
-                minimumFractionDigits: 2,
-            }).format(value);
-        } else {
-            return new Intl.NumberFormat('en-US', {
-                currency: 'USD',
-                minimumFractionDigits: 2,
-            }).format(parseFloat(value));
-        }
-    },
-    limitCharacters(value, limite) {
-        if (!value) return '';
-        if (value.length <= limite) return value;
-        return value.slice(0, limite) + '...';
-    },
+    return value.toLocaleString(document.documentElement.getAttribute("lang"), options);
+  },
+  currencyUSD(value) {
+    if (typeof value === 'number') {
+      return new Intl.NumberFormat('en-US', {
+        currency: 'USD',
+        minimumFractionDigits: 2,
+      }).format(value);
+    } else {
+      return new Intl.NumberFormat('en-US', {
+        currency: 'USD',
+        minimumFractionDigits: 2,
+      }).format(parseFloat(value));
+    }
+  },
+  limitCharacters(value, limite) {
+    if (!value) return '';
+    if (value.length <= limite) return value;
+    return value.slice(0, limite) + '...';
+  },
 };
 
 /**
@@ -107,8 +106,11 @@ import axios from 'axios'
 import VueAxios from 'vue-axios'
 
 app.use(VueAxios, axios)
-app.provide('axios', app.config.globalProperties.axios) // provide 'axios'
+app.provide('axios', app.config.globalProperties.axios)
 
+/**
+ * Fullscreen
+ */
 import VueFullscreen from 'vue-fullscreen'
 app.use(VueFullscreen)
 
@@ -126,52 +128,70 @@ import router from './Router';
 import { useSettingStore } from "@/Stores/SettingStore.js";
 app.use(router);
 
-/// Directive
+/**
+ * Directive
+ */
 app.directive("maska", vMaska)
 
 /**
  * PINIA
- * @type {Pinia}
  */
 const pinia = createPinia()
 pinia.use(({ store }) => { store.router = markRaw(router) })
 app.use(pinia);
 
+/**
+ * i18n
+ */
 app.use(i18nVue, {
-    resolve: async lang => {
-        const langs = import.meta.glob('../../lang/*.json');
-        return await langs[`../../lang/${lang}.json`]();
-    }
+  resolve: async lang => {
+    const langs = import.meta.glob('../../lang/*.json');
+    return await langs[`../../lang/${lang}.json`]();
+  }
 });
 
+/**
+ * Load settings
+ */
 (async () => {
-    const setting = useSettingStore();
-    try {
-        const settingData = await setting.getSetting();
-        setting.setSetting(settingData);
-    } catch (e) {
-
-    }
+  const setting = useSettingStore();
+  try {
+    const settingData = await setting.getSetting();
+    setting.setSetting(settingData);
+  } catch (e) {
+    // opcional: console.error(e)
+  }
 })()
 
+/**
+ * Auth
+ */
 if (localStorage.getItem('token')) {
-    (async () => {
-        const auth = useAuthStore();
-        try {
-            auth.setIsAuth(true);
-            const user = await auth.checkToken();
-            if (user !== undefined) {
-                auth.setUser(user);
-            }
-
-            //auth.initializingEcho();
-        } catch (e) {
-            auth.setIsAuth(false);
-        }
-    })()
+  (async () => {
+    const auth = useAuthStore();
+    try {
+      auth.setIsAuth(true);
+      const user = await auth.checkToken();
+      if (user !== undefined) {
+        auth.setUser(user);
+      }
+      // auth.initializingEcho();
+    } catch (e) {
+      auth.setIsAuth(false);
+    }
+  })()
 }
 
 /**
- * ✅ MOUNT CORRETO: se o Blade usa <div id="app">, tem que montar aqui.
+ * ✅ MOUNT (corrigido)
+ * Se existir #app, monta nele. Senão tenta #viperpro.
  */
-app.mount('#app');
+const mountEl =
+  document.getElementById('app') ||
+  document.getElementById('viperpro');
+
+if (!mountEl) {
+  console.error('[Vue] Não achei #app nem #viperpro no HTML. Vue não vai montar.');
+} else {
+  app.mount(mountEl);
+}
