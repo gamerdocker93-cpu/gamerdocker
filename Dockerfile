@@ -18,7 +18,6 @@ RUN apt-get update && apt-get install -y \
     zip unzip git \
     libpng-dev libjpeg-dev libfreetype6-dev \
     bash \
-    curl \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo_mysql intl zip bcmath gd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -115,6 +114,36 @@ rm -f /var/www/html/.env 2>/dev/null || true
 # Garante modo PROD (remove hot files)
 rm -f /var/www/html/public/hot 2>/dev/null || true
 rm -f /var/www/html/public/build/hot 2>/dev/null || true
+
+# ============================================================
+# INJECAO: GARANTIR QUE O BLADE PUXA VITE E CSRF (PROD)
+# (isso faz o browser passar a requisitar /build/assets/*.js e *.css)
+# ============================================================
+BLADE_FILE="/var/www/html/resources/views/layouts/app.blade.php"
+if [ -f "$BLADE_FILE" ]; then
+  if ! grep -q 'name="csrf-token"' "$BLADE_FILE"; then
+    sed -i 's|</head>|    <meta name="csrf-token" content="{{ csrf_token() }}">\n</head>|' "$BLADE_FILE" || true
+  fi
+
+  if ! grep -q "@vite(" "$BLADE_FILE"; then
+    sed -i "s|</head>|    @vite(['resources/css/app.css', 'resources/js/app.js'])\n</head>|" "$BLADE_FILE" || true
+  fi
+fi
+
+echo ""
+echo "================ VITE CHECK (public/build) ================"
+if [ -f /var/www/html/public/build/manifest.json ]; then
+  echo "manifest.json OK"
+  echo "manifest.json size: $(wc -c < /var/www/html/public/build/manifest.json) bytes"
+  echo "manifest.json first lines:"
+  head -n 12 /var/www/html/public/build/manifest.json || true
+else
+  echo "ERRO: public/build/manifest.json nao existe"
+fi
+
+echo ""
+echo "Assets em public/build/assets:"
+ls -la /var/www/html/public/build/assets 2>/dev/null || echo "Sem pasta assets em public/build"
 
 echo ""
 echo "================ DIAG RUNTIME ================"
@@ -225,70 +254,7 @@ echo "APLICACAO PRONTA"
 echo "=================================================="
 
 php-fpm -D
-nginx -g "daemon off;" &
-
-sleep 1
-
-echo ""
-echo "================ DIAG FRONT (HTML/VITE) ================"
-BASE="http://127.0.0.1:${PORT:-8080}"
-HTML=$(curl -sS -m 10 "$BASE/" || true)
-
-echo "HTML: tem csrf-token?"
-echo "$HTML" | grep -i -n 'csrf-token' | head -n 5 || echo "NAO ENCONTROU csrf-token NO HTML"
-
-echo ""
-echo "HTML: tem /build/ (tags do Vite)?"
-echo "$HTML" | grep -i -n '/build/' | head -n 10 || echo "NAO ENCONTROU /build/ NO HTML"
-
-echo ""
-echo "public/build existe?"
-ls -la /var/www/html/public/build 2>/dev/null || true
-
-echo ""
-echo "manifest.json:"
-if [ -f /var/www/html/public/build/manifest.json ]; then
-  ls -la /var/www/html/public/build/manifest.json
-  head -n 30 /var/www/html/public/build/manifest.json || true
-
-  JSFILE=$(php -r '
-$m=json_decode(@file_get_contents("/var/www/html/public/build/manifest.json"), true);
-if(!$m){exit(0);}
-$k="resources/js/app.js";
-if(isset($m[$k]["file"])) echo $m[$k]["file"];
-' || true)
-
-  CSSFILE=$(php -r '
-$m=json_decode(@file_get_contents("/var/www/html/public/build/manifest.json"), true);
-if(!$m){exit(0);}
-$k="resources/js/app.js";
-if(isset($m[$k]["css"][0])) echo $m[$k]["css"][0];
-' || true)
-
-  echo ""
-  echo "Arquivo JS do manifest: $JSFILE"
-  if [ -n "$JSFILE" ]; then
-    ls -la "/var/www/html/public/build/$JSFILE" 2>/dev/null || echo "NAO ACHOU O JS NO DISCO"
-  else
-    echo "NAO ACHOU resources/js/app.js no manifest"
-  fi
-
-  echo ""
-  echo "Arquivo CSS do manifest: $CSSFILE"
-  if [ -n "$CSSFILE" ]; then
-    ls -la "/var/www/html/public/build/$CSSFILE" 2>/dev/null || echo "NAO ACHOU O CSS NO DISCO"
-  else
-    echo "NAO ACHOU CSS no manifest"
-  fi
-
-else
-  echo "NAO EXISTE /public/build/manifest.json"
-fi
-
-echo "================ FIM DIAG FRONT ================"
-echo ""
-
-wait -n
+nginx -g "daemon off;"
 SCRIPT_END
 
 RUN chmod +x /usr/local/bin/start.sh
