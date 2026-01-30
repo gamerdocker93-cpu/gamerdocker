@@ -1,3 +1,8 @@
+document.body.insertAdjacentHTML('afterbegin',
+  '<div style="padding:10px;background:#065f46;color:#fff;font-family:monospace;">JS app.js carregou ✅</div>'
+);
+console.log('[BOOT] app.js carregou');
+
 import './bootstrap';
 
 import { createApp, markRaw } from 'vue';
