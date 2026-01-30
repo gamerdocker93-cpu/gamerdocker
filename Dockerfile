@@ -1,9 +1,13 @@
 FROM node:18-alpine AS build-assets
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
+
+# Copia o projeto inteiro ANTES de buildar (evita manifest antigo)
 COPY . .
+
+# Dependências e build
+RUN npm install
 RUN npm run build
+
 
 FROM php:8.2-fpm
 
@@ -42,6 +46,7 @@ COPY . .
 RUN composer dump-autoload -o \
  && php artisan package:discover --ansi || true
 
+# Copia os assets buildados do estágio do Node
 COPY --from=build-assets /app/public/build ./public/build
 
 RUN rm -f bootstrap/cache/*.php && \
@@ -106,27 +111,9 @@ export APP_CIPHER="${APP_CIPHER:-aes-256-cbc}"
 # Evita sobrescrita por .env (se existir)
 rm -f /var/www/html/.env 2>/dev/null || true
 
-# ============================================================
-# BLINDAGEM VITE: Garante modo PROD (ignora hot files)
-# ============================================================
+# Garante modo PROD (remove hot files)
 rm -f /var/www/html/public/hot 2>/dev/null || true
 rm -f /var/www/html/public/build/hot 2>/dev/null || true
-
-# ============================================================
-# VITE CHECK (public/build)  ✅ (ETAPA 1)
-# ============================================================
-echo ""
-echo "==== VITE CHECK (public/build) ===="
-pwd
-ls -lah public || true
-ls -lah public/build || true
-ls -lah public/build/assets || true
-
-echo "---- manifest head ----"
-head -n 50 public/build/manifest.json 2>/dev/null || echo "manifest.json NAO EXISTE"
-echo "---- grep app-3d3ebea4 ----"
-grep -R "app-3d3ebea4" -n public/build/manifest.json 2>/dev/null || echo "nao achei app-3d3ebea4 no manifest"
-echo "==============================="
 
 echo ""
 echo "================ DIAG RUNTIME ================"
@@ -170,10 +157,6 @@ echo ""
 echo "5) php-fpm loaded conf / clear_env"
 php-fpm -tt 2>&1 | grep -i -n "loaded configuration\|include\|pool\|clear_env" || true
 
-# ============================================================
-# 6) Scan opcional por chave antiga
-# Só roda se RUN_DIAG_KEYSCAN=1
-# ============================================================
 echo ""
 if [ "${RUN_DIAG_KEYSCAN:-0}" = "1" ]; then
   echo "6) Procurando a chave antiga (9687f / OTY4N2Y1) e overrides de app.key"
@@ -211,12 +194,13 @@ if [ "${APP_CIPHER}" = "aes-256-cbc" ] && [ "${KEY_LEN}" != "32" ]; then
   exit 1
 fi
 
-# Limpa caches runtime
+# Limpa caches runtime (FORCADO)
 rm -f bootstrap/cache/*.php 2>/dev/null || true
-php artisan config:clear >/dev/null 2>&1 || true
-php artisan cache:clear  >/dev/null 2>&1 || true
-php artisan route:clear  >/dev/null 2>&1 || true
-php artisan view:clear   >/dev/null 2>&1 || true
+php artisan optimize:clear >/dev/null 2>&1 || true
+php artisan view:clear     >/dev/null 2>&1 || true
+php artisan config:clear   >/dev/null 2>&1 || true
+php artisan cache:clear    >/dev/null 2>&1 || true
+php artisan route:clear    >/dev/null 2>&1 || true
 
 if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
   echo "INFO Running migrations..."
