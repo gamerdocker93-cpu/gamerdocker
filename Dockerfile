@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y \
     zip unzip git \
     libpng-dev libjpeg-dev libfreetype6-dev \
     bash \
+    curl \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo_mysql intl zip bcmath gd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -39,10 +40,6 @@ RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framewor
  && chmod -R 775 storage bootstrap/cache
 
 COPY composer.json composer.lock ./
-
-# INJECAO: garantir que o arquivo artisan exista antes de qualquer script do composer
-COPY artisan ./artisan
-
 RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader --no-scripts
 
 COPY . .
@@ -228,7 +225,70 @@ echo "APLICACAO PRONTA"
 echo "=================================================="
 
 php-fpm -D
-nginx -g "daemon off;"
+nginx -g "daemon off;" &
+
+sleep 1
+
+echo ""
+echo "================ DIAG FRONT (HTML/VITE) ================"
+BASE="http://127.0.0.1:${PORT:-8080}"
+HTML=$(curl -sS -m 10 "$BASE/" || true)
+
+echo "HTML: tem csrf-token?"
+echo "$HTML" | grep -i -n 'csrf-token' | head -n 5 || echo "NAO ENCONTROU csrf-token NO HTML"
+
+echo ""
+echo "HTML: tem /build/ (tags do Vite)?"
+echo "$HTML" | grep -i -n '/build/' | head -n 10 || echo "NAO ENCONTROU /build/ NO HTML"
+
+echo ""
+echo "public/build existe?"
+ls -la /var/www/html/public/build 2>/dev/null || true
+
+echo ""
+echo "manifest.json:"
+if [ -f /var/www/html/public/build/manifest.json ]; then
+  ls -la /var/www/html/public/build/manifest.json
+  head -n 30 /var/www/html/public/build/manifest.json || true
+
+  JSFILE=$(php -r '
+$m=json_decode(@file_get_contents("/var/www/html/public/build/manifest.json"), true);
+if(!$m){exit(0);}
+$k="resources/js/app.js";
+if(isset($m[$k]["file"])) echo $m[$k]["file"];
+' || true)
+
+  CSSFILE=$(php -r '
+$m=json_decode(@file_get_contents("/var/www/html/public/build/manifest.json"), true);
+if(!$m){exit(0);}
+$k="resources/js/app.js";
+if(isset($m[$k]["css"][0])) echo $m[$k]["css"][0];
+' || true)
+
+  echo ""
+  echo "Arquivo JS do manifest: $JSFILE"
+  if [ -n "$JSFILE" ]; then
+    ls -la "/var/www/html/public/build/$JSFILE" 2>/dev/null || echo "NAO ACHOU O JS NO DISCO"
+  else
+    echo "NAO ACHOU resources/js/app.js no manifest"
+  fi
+
+  echo ""
+  echo "Arquivo CSS do manifest: $CSSFILE"
+  if [ -n "$CSSFILE" ]; then
+    ls -la "/var/www/html/public/build/$CSSFILE" 2>/dev/null || echo "NAO ACHOU O CSS NO DISCO"
+  else
+    echo "NAO ACHOU CSS no manifest"
+  fi
+
+else
+  echo "NAO EXISTE /public/build/manifest.json"
+fi
+
+echo "================ FIM DIAG FRONT ================"
+echo ""
+
+wait -n
 SCRIPT_END
 
 RUN chmod +x /usr/local/bin/start.sh
