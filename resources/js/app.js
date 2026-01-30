@@ -1,6 +1,6 @@
 import './bootstrap';
 
-import { createApp, markRaw } from 'vue/dist/vue.esm-bundler';
+import { createApp, markRaw } from 'vue';
 import { createPinia } from 'pinia';
 import { i18nVue } from 'laravel-vue-i18n';
 import { vMaska } from "maska";
@@ -106,7 +106,7 @@ import axios from 'axios'
 import VueAxios from 'vue-axios'
 
 app.use(VueAxios, axios)
-app.provide('axios', app.config.globalProperties.axios)
+app.provide('axios', axios)
 
 /**
  * Fullscreen
@@ -125,7 +125,6 @@ app.use(Toast, optionsToast)
  * Router
  */
 import router from './Router';
-import { useSettingStore } from "@/Stores/SettingStore.js";
 app.use(router);
 
 /**
@@ -134,7 +133,8 @@ app.use(router);
 app.directive("maska", vMaska)
 
 /**
- * PINIA
+ * ✅ PINIA (MOVIDO PRA CIMA)
+ * Precisa estar ativo ANTES de usar qualquer Store.
  */
 const pinia = createPinia()
 pinia.use(({ store }) => { store.router = markRaw(router) })
@@ -151,8 +151,24 @@ app.use(i18nVue, {
 });
 
 /**
- * Load settings
+ * ✅ MOUNT (mantido)
+ * Se existir #app, monta nele. Senão tenta #viperpro.
  */
+const mountEl =
+  document.getElementById('app') ||
+  document.getElementById('viperpro');
+
+if (!mountEl) {
+  console.error('[Vue] Não achei #app nem #viperpro no HTML. Vue não vai montar.');
+} else {
+  app.mount(mountEl);
+}
+
+/**
+ * Load settings (AGORA DEPOIS do Pinia estar ativo)
+ */
+import { useSettingStore } from "@/Stores/SettingStore.js";
+
 (async () => {
   const setting = useSettingStore();
   try {
@@ -164,7 +180,7 @@ app.use(i18nVue, {
 })()
 
 /**
- * Auth
+ * Auth (AGORA DEPOIS do Pinia estar ativo)
  */
 if (localStorage.getItem('token')) {
   (async () => {
@@ -180,18 +196,4 @@ if (localStorage.getItem('token')) {
       auth.setIsAuth(false);
     }
   })()
-}
-
-/**
- * ✅ MOUNT (corrigido)
- * Se existir #app, monta nele. Senão tenta #viperpro.
- */
-const mountEl =
-  document.getElementById('app') ||
-  document.getElementById('viperpro');
-
-if (!mountEl) {
-  console.error('[Vue] Não achei #app nem #viperpro no HTML. Vue não vai montar.');
-} else {
-  app.mount(mountEl);
 }
