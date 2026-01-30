@@ -112,6 +112,22 @@ rm -f /var/www/html/.env 2>/dev/null || true
 rm -f /var/www/html/public/hot 2>/dev/null || true
 rm -f /var/www/html/public/build/hot 2>/dev/null || true
 
+# ============================================================
+# VITE CHECK (public/build)  ✅ (ETAPA 1)
+# ============================================================
+echo ""
+echo "==== VITE CHECK (public/build) ===="
+pwd
+ls -lah public || true
+ls -lah public/build || true
+ls -lah public/build/assets || true
+
+echo "---- manifest head ----"
+head -n 50 public/build/manifest.json 2>/dev/null || echo "manifest.json NAO EXISTE"
+echo "---- grep app-3d3ebea4 ----"
+grep -R "app-3d3ebea4" -n public/build/manifest.json 2>/dev/null || echo "nao achei app-3d3ebea4 no manifest"
+echo "==============================="
+
 echo ""
 echo "================ DIAG RUNTIME ================"
 echo "SHELL APP_KEY (curto): $(printf '%s' "$APP_KEY" | cut -c1-25)..."
