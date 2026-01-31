@@ -121,7 +121,6 @@ rm -f /var/www/html/public/build/hot 2>/dev/null || true
 
 # ============================================================
 # INJECAO: GARANTIR QUE O BLADE PUXA VITE E CSRF (PROD)
-# + INJECAO: OVERLAY DE ERRO JS (sem console no celular)
 # ============================================================
 BLADE_FILE="/var/www/html/resources/views/layouts/app.blade.php"
 if [ -f "$BLADE_FILE" ]; then
@@ -131,10 +130,6 @@ if [ -f "$BLADE_FILE" ]; then
 
   if ! grep -q "@vite(" "$BLADE_FILE"; then
     sed -i "s|</head>|    @vite(['resources/css/app.css', 'resources/js/app.js'])\n</head>|" "$BLADE_FILE" || true
-  fi
-
-  if ! grep -q "JS_ERROR_OVERLAY" "$BLADE_FILE"; then
-    sed -i "s|</head>|    <script>/*JS_ERROR_OVERLAY*/(function(){function addBox(){var d=document.getElementById('js-error-overlay');if(d)return d;d=document.createElement('div');d.id='js-error-overlay';d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:rgba(120,0,0,.92);color:#fff;font:12px/1.35 monospace;padding:10px;max-height:45vh;overflow:auto;white-space:pre-wrap;display:none';document.addEventListener('DOMContentLoaded',function(){document.body.appendChild(d);});return d;}function show(msg){try{var d=addBox();d.textContent+=msg+'\\n';d.style.display='block';}catch(e){}}window.addEventListener('error',function(e){show('JS ERROR: '+(e.message||'')+'\\n'+(e.filename||'')+':'+(e.lineno||'')+':'+(e.colno||''));});window.addEventListener('unhandledrejection',function(e){var r=e.reason;var m='';try{m=(r&&((r.stack)||(r.message)))||String(r);}catch(x){m='(unreadable reason)';}show('PROMISE REJECTION: '+m);});})();</script>\\n</head>|" "$BLADE_FILE" || true
   fi
 fi
 
@@ -241,6 +236,16 @@ if [ "${APP_CIPHER}" = "aes-256-cbc" ] && [ "${KEY_LEN}" != "32" ]; then
   echo "ERRO: APP_KEY invalido (precisa 32 bytes)."
   exit 1
 fi
+
+# ============================================================
+# INJECAO: GARANTIR STORAGE LINK E PERMISSOES EM RUNTIME
+# ============================================================
+if [ ! -L /var/www/html/public/storage ]; then
+  php artisan storage:link >/dev/null 2>&1 || true
+fi
+
+chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
+chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
 
 # Limpa caches runtime (FORCADO)
 rm -f bootstrap/cache/*.php 2>/dev/null || true
