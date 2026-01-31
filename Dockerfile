@@ -6,6 +6,7 @@ COPY . .
 
 # Dependências e build
 RUN npm install
+RUN rm -rf public/build
 RUN npm run build
 
 
@@ -45,6 +46,9 @@ COPY . .
 
 RUN composer dump-autoload -o \
  && php artisan package:discover --ansi || true
+
+# Limpa build antigo antes de copiar o novo (evita misturar arquivos)
+RUN rm -rf /var/www/html/public/build
 
 # Copia os assets buildados do estágio do Node
 COPY --from=build-assets /app/public/build ./public/build
@@ -117,7 +121,6 @@ rm -f /var/www/html/public/build/hot 2>/dev/null || true
 
 # ============================================================
 # INJECAO: GARANTIR QUE O BLADE PUXA VITE E CSRF (PROD)
-# (isso faz o browser passar a requisitar /build/assets/*.js e *.css)
 # ============================================================
 BLADE_FILE="/var/www/html/resources/views/layouts/app.blade.php"
 if [ -f "$BLADE_FILE" ]; then
@@ -135,8 +138,6 @@ echo "================ VITE CHECK (public/build) ================"
 if [ -f /var/www/html/public/build/manifest.json ]; then
   echo "manifest.json OK"
   echo "manifest.json size: $(wc -c < /var/www/html/public/build/manifest.json) bytes"
-  echo "manifest.json first lines:"
-  head -n 12 /var/www/html/public/build/manifest.json || true
 else
   echo "ERRO: public/build/manifest.json nao existe"
 fi
@@ -144,6 +145,18 @@ fi
 echo ""
 echo "Assets em public/build/assets:"
 ls -la /var/www/html/public/build/assets 2>/dev/null || echo "Sem pasta assets em public/build"
+
+echo ""
+echo "================ MANIFEST APP ENTRY CHECK ================"
+if [ -f /var/www/html/public/build/manifest.json ]; then
+  APP_FILE=$(php -r '$m=json_decode(file_get_contents("/var/www/html/public/build/manifest.json"),true); echo $m["resources/js/app.js"]["file"] ?? "";')
+  echo "manifest resources/js/app.js file: $APP_FILE"
+  if [ -n "$APP_FILE" ] && [ -f "/var/www/html/public/build/$APP_FILE" ]; then
+    echo "app entry size bytes: $(wc -c < "/var/www/html/public/build/$APP_FILE")"
+  else
+    echo "app entry file nao encontrado no disco"
+  fi
+fi
 
 echo ""
 echo "================ DIAG RUNTIME ================"
