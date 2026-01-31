@@ -65,10 +65,7 @@ RUN printf '%s\n' \
 '  listen 80;' \
 '  root /var/www/html/public;' \
 '  index index.php;' \
-'  access_log /dev/stdout;' \
-'  error_log /dev/stderr warn;' \
 '  location / { try_files $uri $uri/ /index.php?$query_string; }' \
-'  location ~* ^/build/ { try_files $uri =404; }' \
 '  location ~ \.php$ {' \
 '    include fastcgi_params;' \
 '    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;' \
@@ -124,24 +121,22 @@ rm -f /var/www/html/public/build/hot 2>/dev/null || true
 
 # ============================================================
 # INJECAO: GARANTIR QUE O BLADE PUXA VITE E CSRF (PROD)
-# (app e guest)
+# + INJECAO: OVERLAY DE ERRO JS (sem console no celular)
 # ============================================================
-BLADE_FILES=(
-  "/var/www/html/resources/views/layouts/app.blade.php"
-  "/var/www/html/resources/views/layouts/guest.blade.php"
-)
-
-for BLADE_FILE in "${BLADE_FILES[@]}"; do
-  if [ -f "$BLADE_FILE" ]; then
-    if ! grep -q 'name="csrf-token"' "$BLADE_FILE"; then
-      sed -i 's|</head>|    <meta name="csrf-token" content="{{ csrf_token() }}">\n</head>|' "$BLADE_FILE" || true
-    fi
-
-    if ! grep -q "@vite(" "$BLADE_FILE"; then
-      sed -i "s|</head>|    @vite(['resources/css/app.css', 'resources/js/app.js'])\n</head>|" "$BLADE_FILE" || true
-    fi
+BLADE_FILE="/var/www/html/resources/views/layouts/app.blade.php"
+if [ -f "$BLADE_FILE" ]; then
+  if ! grep -q 'name="csrf-token"' "$BLADE_FILE"; then
+    sed -i 's|</head>|    <meta name="csrf-token" content="{{ csrf_token() }}">\n</head>|' "$BLADE_FILE" || true
   fi
-done
+
+  if ! grep -q "@vite(" "$BLADE_FILE"; then
+    sed -i "s|</head>|    @vite(['resources/css/app.css', 'resources/js/app.js'])\n</head>|" "$BLADE_FILE" || true
+  fi
+
+  if ! grep -q "JS_ERROR_OVERLAY" "$BLADE_FILE"; then
+    sed -i "s|</head>|    <script>/*JS_ERROR_OVERLAY*/(function(){function addBox(){var d=document.getElementById('js-error-overlay');if(d)return d;d=document.createElement('div');d.id='js-error-overlay';d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:rgba(120,0,0,.92);color:#fff;font:12px/1.35 monospace;padding:10px;max-height:45vh;overflow:auto;white-space:pre-wrap;display:none';document.addEventListener('DOMContentLoaded',function(){document.body.appendChild(d);});return d;}function show(msg){try{var d=addBox();d.textContent+=msg+'\\n';d.style.display='block';}catch(e){}}window.addEventListener('error',function(e){show('JS ERROR: '+(e.message||'')+'\\n'+(e.filename||'')+':'+(e.lineno||'')+':'+(e.colno||''));});window.addEventListener('unhandledrejection',function(e){var r=e.reason;var m='';try{m=(r&&((r.stack)||(r.message)))||String(r);}catch(x){m='(unreadable reason)';}show('PROMISE REJECTION: '+m);});})();</script>\\n</head>|" "$BLADE_FILE" || true
+  fi
+fi
 
 echo ""
 echo "================ VITE CHECK (public/build) ================"
