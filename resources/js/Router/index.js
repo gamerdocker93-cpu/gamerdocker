@@ -77,14 +77,11 @@ export const routes = [
     path: "/promotion",
     component: PromotionPage,
   },
-
-  // ✅ Mantém /sports apenas uma vez (sem duplicar)
   {
     name: "sports",
     path: "/sports",
     component: SportPage,
   },
-
   {
     name: "supportCenter",
     path: "/support-center",
@@ -220,8 +217,8 @@ export const routes = [
 ];
 
 const router = createRouter({
-  // ✅ BASE_URL é a forma correta/segura no Vite
-  history: createWebHistory(import.meta.env.BASE_URL),
+  // ✅ FIX ABSOLUTO: evita base /build e elimina 403 no refresh
+  history: createWebHistory("/"),
   routes,
 });
 
