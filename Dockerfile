@@ -65,7 +65,20 @@ RUN printf '%s\n' \
 '  listen 80;' \
 '  root /var/www/html/public;' \
 '  index index.php;' \
-'  location / { try_files $uri $uri/ /index.php?$query_string; }' \
+'' \
+'  # Assets do Vite (public/build) - só arquivo, nada de pasta' \
+'  location ^~ /build/ {' \
+'    try_files $uri =404;' \
+'    access_log off;' \
+'    expires 1y;' \
+'    add_header Cache-Control "public, max-age=31536000, immutable";' \
+'  }' \
+'' \
+'  # IMPORTANTE: nao usar $uri/ aqui (evita 403 ao cair em diretorio tipo /build/)' \
+'  location / {' \
+'    try_files $uri /index.php?$query_string;' \
+'  }' \
+'' \
 '  location ~ \.php$ {' \
 '    include fastcgi_params;' \
 '    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;' \
@@ -121,31 +134,19 @@ rm -f /var/www/html/public/build/hot 2>/dev/null || true
 
 # ============================================================
 # INJECAO: GARANTIR QUE O BLADE PUXA VITE E CSRF (PROD)
-# (versao segura: sem sed, para nao quebrar com caracteres especiais)
+# (feito com insercao segura, sem sed s/// gigante)
 # ============================================================
 BLADE_FILE="/var/www/html/resources/views/layouts/app.blade.php"
 if [ -f "$BLADE_FILE" ]; then
-  php -r '
-  $f=getenv("BLADE_FILE");
-  $c=@file_get_contents($f);
-  if($c===false){ exit(0); }
+  if ! grep -q 'name="csrf-token"' "$BLADE_FILE"; then
+    # Insere ANTES do </head>
+    sed -i '/<\/head>/i\    <meta name="csrf-token" content="{{ csrf_token() }}">' "$BLADE_FILE" || true
+  fi
 
-  $changed=false;
-
-  if(stripos($c, "name=\"csrf-token\"")===false){
-    $c=str_replace("</head>", "    <meta name=\"csrf-token\" content=\"{{ csrf_token() }}\">\n</head>", $c);
-    $changed=true;
-  }
-
-  if(strpos($c, "@vite(")===false){
-    $c=str_replace("</head>", "    @vite([\"resources/css/app.css\", \"resources/js/app.js\"])\n</head>", $c);
-    $changed=true;
-  }
-
-  if($changed){
-    file_put_contents($f, $c);
-  }
-  ' || true
+  if ! grep -q "@vite(" "$BLADE_FILE"; then
+    # Insere ANTES do </head>
+    sed -i "/<\/head>/i\    @vite(['resources/css/app.css', 'resources/js/app.js'])" "$BLADE_FILE" || true
+  fi
 fi
 
 echo ""
