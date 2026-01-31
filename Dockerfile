@@ -121,16 +121,31 @@ rm -f /var/www/html/public/build/hot 2>/dev/null || true
 
 # ============================================================
 # INJECAO: GARANTIR QUE O BLADE PUXA VITE E CSRF (PROD)
+# (versao segura: sem sed, para nao quebrar com caracteres especiais)
 # ============================================================
 BLADE_FILE="/var/www/html/resources/views/layouts/app.blade.php"
 if [ -f "$BLADE_FILE" ]; then
-  if ! grep -q 'name="csrf-token"' "$BLADE_FILE"; then
-    sed -i 's|</head>|    <meta name="csrf-token" content="{{ csrf_token() }}">\n</head>|' "$BLADE_FILE" || true
-  fi
+  php -r '
+  $f=getenv("BLADE_FILE");
+  $c=@file_get_contents($f);
+  if($c===false){ exit(0); }
 
-  if ! grep -q "@vite(" "$BLADE_FILE"; then
-    sed -i "s|</head>|    @vite(['resources/css/app.css', 'resources/js/app.js'])\n</head>|" "$BLADE_FILE" || true
-  fi
+  $changed=false;
+
+  if(stripos($c, "name=\"csrf-token\"")===false){
+    $c=str_replace("</head>", "    <meta name=\"csrf-token\" content=\"{{ csrf_token() }}\">\n</head>", $c);
+    $changed=true;
+  }
+
+  if(strpos($c, "@vite(")===false){
+    $c=str_replace("</head>", "    @vite([\"resources/css/app.css\", \"resources/js/app.js\"])\n</head>", $c);
+    $changed=true;
+  }
+
+  if($changed){
+    file_put_contents($f, $c);
+  }
+  ' || true
 fi
 
 echo ""
@@ -236,16 +251,6 @@ if [ "${APP_CIPHER}" = "aes-256-cbc" ] && [ "${KEY_LEN}" != "32" ]; then
   echo "ERRO: APP_KEY invalido (precisa 32 bytes)."
   exit 1
 fi
-
-# ============================================================
-# INJECAO: GARANTIR STORAGE LINK E PERMISSOES EM RUNTIME
-# ============================================================
-if [ ! -L /var/www/html/public/storage ]; then
-  php artisan storage:link >/dev/null 2>&1 || true
-fi
-
-chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
-chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
 
 # Limpa caches runtime (FORCADO)
 rm -f bootstrap/cache/*.php 2>/dev/null || true
