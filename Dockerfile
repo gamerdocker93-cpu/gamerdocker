@@ -65,7 +65,10 @@ RUN printf '%s\n' \
 '  listen 80;' \
 '  root /var/www/html/public;' \
 '  index index.php;' \
+'  access_log /dev/stdout;' \
+'  error_log /dev/stderr warn;' \
 '  location / { try_files $uri $uri/ /index.php?$query_string; }' \
+'  location ~* ^/build/ { try_files $uri =404; }' \
 '  location ~ \.php$ {' \
 '    include fastcgi_params;' \
 '    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;' \
@@ -121,17 +124,24 @@ rm -f /var/www/html/public/build/hot 2>/dev/null || true
 
 # ============================================================
 # INJECAO: GARANTIR QUE O BLADE PUXA VITE E CSRF (PROD)
+# (app e guest)
 # ============================================================
-BLADE_FILE="/var/www/html/resources/views/layouts/app.blade.php"
-if [ -f "$BLADE_FILE" ]; then
-  if ! grep -q 'name="csrf-token"' "$BLADE_FILE"; then
-    sed -i 's|</head>|    <meta name="csrf-token" content="{{ csrf_token() }}">\n</head>|' "$BLADE_FILE" || true
-  fi
+BLADE_FILES=(
+  "/var/www/html/resources/views/layouts/app.blade.php"
+  "/var/www/html/resources/views/layouts/guest.blade.php"
+)
 
-  if ! grep -q "@vite(" "$BLADE_FILE"; then
-    sed -i "s|</head>|    @vite(['resources/css/app.css', 'resources/js/app.js'])\n</head>|" "$BLADE_FILE" || true
+for BLADE_FILE in "${BLADE_FILES[@]}"; do
+  if [ -f "$BLADE_FILE" ]; then
+    if ! grep -q 'name="csrf-token"' "$BLADE_FILE"; then
+      sed -i 's|</head>|    <meta name="csrf-token" content="{{ csrf_token() }}">\n</head>|' "$BLADE_FILE" || true
+    fi
+
+    if ! grep -q "@vite(" "$BLADE_FILE"; then
+      sed -i "s|</head>|    @vite(['resources/css/app.css', 'resources/js/app.js'])\n</head>|" "$BLADE_FILE" || true
+    fi
   fi
-fi
+done
 
 echo ""
 echo "================ VITE CHECK (public/build) ================"
