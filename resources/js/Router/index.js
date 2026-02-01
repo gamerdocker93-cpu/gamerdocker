@@ -37,223 +37,66 @@ import ForgotPassword from "@/Pages/Auth/ForgotPassword.vue";
 import ResetPassword from "@/Pages/Auth/ResetPassword.vue";
 
 export const routes = [
-  // HOME CORRETO
-  {
-    name: "home",
-    path: "/",
-    component: HomePage,
-  },
+  { name: "home", path: "/:action?", component: HomePage },
 
-  // CASINO (agora é outra página de verdade)
-  {
-    name: "casinos",
-    path: "/casinos",
-    component: CassinoListPage,
-  },
+  { name: "login", path: "/login", component: LoginPage },
+  { name: "register", path: "/register/:code?", component: RegisterPage },
 
-  // SPORTS
-  {
-    name: "sports",
-    path: "/sports",
-    component: SportPage,
-  },
+  { name: "forgotPassword", path: "/forgot-password", component: ForgotPassword },
+  { name: "resetPassword", path: "/reset-password/:token", component: ResetPassword },
 
-  // Auth
-  {
-    name: "login",
-    path: "/login",
-    component: LoginPage,
-  },
-  {
-    name: "register",
-    path: "/register/:code?",
-    component: RegisterPage,
-  },
-  {
-    name: "forgotPassword",
-    path: "/forgot-password",
-    component: ForgotPassword,
-  },
-  {
-    name: "resetPassword",
-    path: "/reset-password/:token",
-    component: ResetPassword,
-  },
+  { name: "stripeSuccess", path: "/stripe/success", component: StripeSuccess },
+  { name: "stripeCancel", path: "/stripe/cancel", component: StripeCancel },
 
-  // Gateway
-  {
-    name: "stripeSuccess",
-    path: "/stripe/success",
-    component: StripeSuccess,
-  },
-  {
-    name: "stripeCancel",
-    path: "/stripe/cancel",
-    component: StripeCancel,
-  },
+  { name: "support", path: "/support", component: SupportPage },
+  { name: "promotion", path: "/promotion", component: PromotionPage },
+  { name: "supportCenter", path: "/support-center", component: SupportCenterPage },
 
-  // Support/Pages
-  {
-    name: "support",
-    path: "/support",
-    component: SupportPage,
-  },
-  {
-    name: "promotion",
-    path: "/promotion",
-    component: PromotionPage,
-  },
-  {
-    name: "supportCenter",
-    path: "/support-center",
-    component: SupportCenterPage,
-  },
+  { name: "sports", path: "/sports", component: SportPage },
 
-  // Profile (auth)
-  {
-    name: "profileAffiliate",
-    path: "/profile/affiliate",
-    component: AffiliatePage,
-    meta: { auth: true },
-  },
-  {
-    name: "favoritePage",
-    path: "/profile/favorite",
-    component: FavoritePage,
-    meta: { auth: true },
-  },
-  {
-    name: "profileWallet",
-    path: "/profile/wallet",
-    component: WalletPage,
-    meta: { auth: true },
-  },
-  {
-    name: "recentsPage",
-    path: "/profile/recents",
-    component: RecentsPage,
-    meta: { auth: true },
-  },
-  {
-    name: "profileDeposit",
-    path: "/profile/deposit",
-    component: DepositPage,
-    meta: { auth: true },
-  },
-  {
-    name: "profileWithdraw",
-    path: "/profile/withdraw",
-    component: WithdrawPage,
-    meta: { auth: true },
-  },
-  {
-    name: "profileTransactions",
-    path: "/profile/transactions",
-    component: TransactionPage,
-    meta: { auth: true },
-  },
+  { name: "casinos", path: "/casinos", component: HomePage },
+  { name: "casinoPlayPage", path: "/games/play/:id/:slug", component: CasinoPlayPage },
+  { name: "casinosAll", path: "/casino/provider/:provider?/category/:category?", component: CassinoListPage },
+  { name: "casinoSearch", path: "/casino/search", component: CassinoSearch },
 
-  // Terms
-  {
-    name: "termsConditionsReference",
-    path: "/terms/conditions-reference",
-    component: ConditionsReference,
-  },
-  {
-    name: "serviceTerms",
-    path: "/terms/service",
-    component: ServiceTerms,
-  },
-  {
-    name: "privacyPolicy",
-    path: "/terms/privacy-policy",
-    component: PrivacyPolicy,
-  },
-  {
-    name: "bonusTerms",
-    path: "/terms/bonus",
-    component: BonusTerms,
-  },
-  {
-    name: "welcomeBonus",
-    path: "/terms/bonus-welcome",
-    component: WelcomeBonus,
-  },
+  { name: "dataPage", path: "/datapage", component: DataPage },
+  { name: "recordPage", path: "/records", component: RecordPage },
+  { name: "eventsPage", path: "/events", component: EventsPage },
+  { name: "vipPage", path: "/vip", component: VipPage },
+  { name: "bonusPage", path: "/bonus", component: BonusPage },
+  { name: "awardsPage", path: "/awards", component: AwardsPage },
+  { name: "landingPage", path: "/landing/spin", component: LandingPage },
 
-  // Data/Other
-  {
-    name: "dataPage",
-    path: "/datapage",
-    component: DataPage,
-  },
-  {
-    name: "recordPage",
-    path: "/records",
-    component: RecordPage,
-  },
-  {
-    name: "eventsPage",
-    path: "/events",
-    component: EventsPage,
-  },
-  {
-    name: "vipPage",
-    path: "/vip",
-    component: VipPage,
-  },
-  {
-    name: "bonusPage",
-    path: "/bonus",
-    component: BonusPage,
-  },
-  {
-    name: "awardsPage",
-    path: "/awards",
-    component: AwardsPage,
-  },
-  {
-    name: "landingPage",
-    path: "/landing/spin",
-    component: LandingPage,
-  },
+  { name: "termsConditionsReference", path: "/terms/conditions-reference", component: ConditionsReference },
+  { name: "serviceTerms", path: "/terms/service", component: ServiceTerms },
+  { name: "privacyPolicy", path: "/terms/privacy-policy", component: PrivacyPolicy },
+  { name: "bonusTerms", path: "/terms/bonus", component: BonusTerms },
+  { name: "welcomeBonus", path: "/terms/bonus-welcome", component: WelcomeBonus },
 
-  // Casino extra
-  {
-    name: "casinoPlayPage",
-    path: "/games/play/:id/:slug",
-    component: CasinoPlayPage,
-  },
-  {
-    name: "casinosAll",
-    path: "/casino/provider/:provider?/category/:category?",
-    component: CassinoListPage,
-  },
-  {
-    name: "casinoSearch",
-    path: "/casino/search",
-    component: CassinoSearch,
-  },
-
-  // CATCH-ALL (sempre por último)
-  {
-    name: "notFound",
-    path: "/:pathMatch(.*)*",
-    redirect: "/",
-  },
+  { name: "profileAffiliate", path: "/profile/affiliate", component: AffiliatePage, meta: { auth: true } },
+  { name: "favoritePage", path: "/profile/favorite", component: FavoritePage, meta: { auth: true } },
+  { name: "profileWallet", path: "/profile/wallet", component: WalletPage, meta: { auth: true } },
+  { name: "recentsPage", path: "/profile/recents", component: RecentsPage, meta: { auth: true } },
+  { name: "profileDeposit", path: "/profile/deposit", component: DepositPage, meta: { auth: true } },
+  { name: "profileWithdraw", path: "/profile/withdraw", component: WithdrawPage, meta: { auth: true } },
+  { name: "profileTransactions", path: "/profile/transactions", component: TransactionPage, meta: { auth: true } },
 ];
 
 const router = createRouter({
   history: createWebHistory("/"),
   routes,
+  scrollBehavior() {
+    return { top: 0 };
+  },
 });
 
-router.beforeEach(async (to, from, next) => {
+router.beforeEach((to, from, next) => {
   if (to.meta?.auth) {
     const auth = useAuthStore();
     auth.isAuth ? next() : next({ name: "home" });
-  } else {
-    next();
+    return;
   }
+  next();
 });
 
 export default router;
