@@ -17,7 +17,17 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-// CARREGA AS ROTAS DO SISTEMA
-if (file_exists(__DIR__ . '/groups/layouts/app.php')) {
-    include_once(__DIR__ . '/groups/layouts/app.php');
-}
+/**
+ * Healthcheck simples (opcional)
+ */
+Route::get('/health', function () {
+    return response()->json(['ok' => true]);
+});
+
+/**
+ * SPA fallback (Vue Router history mode)
+ * Qualquer rota que NÃO seja /api/* vai renderizar o Blade.
+ */
+Route::get('/{any}', function () {
+    return view('layouts.app');
+})->where('any', '^(?!api).*$');
