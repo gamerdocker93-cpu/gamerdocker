@@ -37,15 +37,37 @@ import ForgotPassword from "@/Pages/Auth/ForgotPassword.vue";
 import ResetPassword from "@/Pages/Auth/ResetPassword.vue";
 
 export const routes = [
+  // HOME CORRETO
   {
     name: "home",
-    path: "/:action?",
+    path: "/",
     component: HomePage,
   },
+
+  // CASINO (agora é outra página de verdade)
+  {
+    name: "casinos",
+    path: "/casinos",
+    component: CassinoListPage,
+  },
+
+  // SPORTS
+  {
+    name: "sports",
+    path: "/sports",
+    component: SportPage,
+  },
+
+  // Auth
   {
     name: "login",
     path: "/login",
     component: LoginPage,
+  },
+  {
+    name: "register",
+    path: "/register/:code?",
+    component: RegisterPage,
   },
   {
     name: "forgotPassword",
@@ -57,6 +79,8 @@ export const routes = [
     path: "/reset-password/:token",
     component: ResetPassword,
   },
+
+  // Gateway
   {
     name: "stripeSuccess",
     path: "/stripe/success",
@@ -67,6 +91,8 @@ export const routes = [
     path: "/stripe/cancel",
     component: StripeCancel,
   },
+
+  // Support/Pages
   {
     name: "support",
     path: "/support",
@@ -78,20 +104,12 @@ export const routes = [
     component: PromotionPage,
   },
   {
-    name: "sports",
-    path: "/sports",
-    component: SportPage,
-  },
-  {
     name: "supportCenter",
     path: "/support-center",
     component: SupportCenterPage,
   },
-  {
-    name: "register",
-    path: "/register/:code?",
-    component: RegisterPage,
-  },
+
+  // Profile (auth)
   {
     name: "profileAffiliate",
     path: "/profile/affiliate",
@@ -103,26 +121,6 @@ export const routes = [
     path: "/profile/favorite",
     component: FavoritePage,
     meta: { auth: true },
-  },
-  {
-    name: "casinos",
-    path: "/casinos",
-    component: HomePage,
-  },
-  {
-    name: "casinoPlayPage",
-    path: "/games/play/:id/:slug",
-    component: CasinoPlayPage,
-  },
-  {
-    name: "casinosAll",
-    path: "/casino/provider/:provider?/category/:category?",
-    component: CassinoListPage,
-  },
-  {
-    name: "casinoSearch",
-    path: "/casino/search",
-    component: CassinoSearch,
   },
   {
     name: "profileWallet",
@@ -154,6 +152,8 @@ export const routes = [
     component: TransactionPage,
     meta: { auth: true },
   },
+
+  // Terms
   {
     name: "termsConditionsReference",
     path: "/terms/conditions-reference",
@@ -179,6 +179,8 @@ export const routes = [
     path: "/terms/bonus-welcome",
     component: WelcomeBonus,
   },
+
+  // Data/Other
   {
     name: "dataPage",
     path: "/datapage",
@@ -214,10 +216,33 @@ export const routes = [
     path: "/landing/spin",
     component: LandingPage,
   },
+
+  // Casino extra
+  {
+    name: "casinoPlayPage",
+    path: "/games/play/:id/:slug",
+    component: CasinoPlayPage,
+  },
+  {
+    name: "casinosAll",
+    path: "/casino/provider/:provider?/category/:category?",
+    component: CassinoListPage,
+  },
+  {
+    name: "casinoSearch",
+    path: "/casino/search",
+    component: CassinoSearch,
+  },
+
+  // CATCH-ALL (sempre por último)
+  {
+    name: "notFound",
+    path: "/:pathMatch(.*)*",
+    redirect: "/",
+  },
 ];
 
 const router = createRouter({
-  // ✅ FIX ABSOLUTO: evita base /build e elimina 403 no refresh
   history: createWebHistory("/"),
   routes,
 });
