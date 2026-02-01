@@ -1,3 +1,4 @@
+
 <template>
     <nav class="fixed top-0 z-50 w-full navtop-color custom-box-shadow">
         <div class="px-3 lg:px-5 lg:pl-3 nav-menu">
