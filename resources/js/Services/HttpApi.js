@@ -5,7 +5,7 @@ import { useAuthStore } from "@/Stores/Auth.js";
 const csrfToken = document.head.querySelector('meta[name="csrf-token"]');
 
 const http_axios = axios.create({
-    // ✅ definitivo em produção (mesma origem)
+    // definitivo em produção (mesma origem)
     baseURL: '/api/',
     headers: {
         ...(csrfToken?.content ? { 'X-CSRF-TOKEN': csrfToken.content } : {}),
