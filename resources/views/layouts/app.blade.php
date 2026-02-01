@@ -118,7 +118,7 @@
         {!! $custom['custom_header'] !!}
     @endif
 
-    {{-- ✅ CORRETO (Laravel + Vite): usa o manifest automaticamente --}}
+    {{-- CORRETO (Laravel + Vite): usa o manifest automaticamente --}}
     @vite(['resources/js/app.js', 'resources/css/app.css'])
 </head>
 
@@ -128,7 +128,7 @@
         Layout carregado (Blade OK). Se a tela continuar vazia, é JS/Front não montando.
     </div>
 
-    {{-- ✅ APP ROOT (SPA) --}}
+    {{-- APP ROOT (SPA) --}}
     <div id="app">
         <div style="padding:12px;color:#fff;opacity:.85;">
             Carregando interface...
