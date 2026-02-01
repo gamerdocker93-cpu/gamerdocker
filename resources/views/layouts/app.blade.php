@@ -123,7 +123,7 @@
 </head>
 
 <body color-theme="dark" class="bg-base text-gray-800 dark:text-gray-300">
-    {{-- DEBUG VISUAL --}}
+    {{-- DEBUG VISUAL (mantido) --}}
     <div style="padding:12px;font-size:14px;color:#fff;opacity:.7;">
         Layout carregado (Blade OK). Se a tela continuar vazia, é JS/Front não montando.
     </div>
@@ -135,13 +135,8 @@
         </div>
     </div>
 
-    @yield('content')
-
-    @isset($slot)
-        {{ $slot }}
-    @endisset
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.0.0/datepicker.min.js"></script>
+
     <script>
         window.Livewire?.on('copiado', (texto) => {
             navigator.clipboard.writeText(texto).then(() => {
