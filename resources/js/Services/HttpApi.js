@@ -5,7 +5,6 @@ import { useAuthStore } from "@/Stores/Auth.js";
 const csrfToken = document.head.querySelector('meta[name="csrf-token"]');
 
 const http_axios = axios.create({
-    // definitivo em produção (mesma origem)
     baseURL: '/api/',
     headers: {
         ...(csrfToken?.content ? { 'X-CSRF-TOKEN': csrfToken.content } : {}),
@@ -20,12 +19,17 @@ const http_axios = axios.create({
 http_axios.interceptors.request.use((request) => {
     const userStore = useAuthStore();
 
+    // ===== INJECAO: garante que request.url NAO comece com "/" =====
+    // Se vier "/search/games", vira "search/games" e respeita baseURL "/api/"
+    if (typeof request.url === 'string') {
+        request.url = request.url.replace(/^\/+/, '');
+    }
+
     const token = userStore.getToken?.() || localStorage.getItem('token');
     if (token) {
         request.headers.Authorization = 'Bearer ' + token;
     }
 
-    // reforça CSRF se existir
     if (csrfToken?.content) {
         request.headers['X-CSRF-TOKEN'] = csrfToken.content;
     }
