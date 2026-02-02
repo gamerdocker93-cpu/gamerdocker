@@ -8,12 +8,18 @@ use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 class Kernel extends ConsoleKernel
 {
     /**
+     * Registra comandos manualmente (garante que existam no php artisan).
+     */
+    protected $commands = [
+        \App\Console\Commands\TempAdminCreate::class,
+    ];
+
+    /**
      * Define the application's command schedule.
      */
     protected function schedule(Schedule $schedule): void
     {
-
-
+        // sem agendamentos por enquanto
     }
 
     /**
