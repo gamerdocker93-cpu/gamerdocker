@@ -2,37 +2,28 @@
 
 use Illuminate\Support\Facades\Route;
 
-/*
-|--------------------------------------------------------------------------
-| IMPORTANTE (PRODUÇÃO):
-|--------------------------------------------------------------------------
-| NÃO force app.key/app.cipher/jwt.secret aqui.
-| Isso sobrescreve o ENV correto (Railway) e quebra o Encrypter do Laravel.
-| APP_KEY / APP_CIPHER / JWT_SECRET devem vir do ambiente (.env / Railway Variables).
-|
-| Removido:
-| config(['app.key' => ...]);
-| config(['app.cipher' => ...]);
-| config(['jwt.secret' => ...]);
-|
-*/
-
-/*
-|--------------------------------------------------------------------------
-| Healthcheck
-|--------------------------------------------------------------------------
-*/
+/**
+ * Healthcheck simples (opcional)
+ */
 Route::get('/health', function () {
     return response()->json(['ok' => true]);
 });
 
+/**
+ * CARREGA AS ROTAS DO SISTEMA (se existirem)
+ * Isso é importante para não “matar” rotas do painel/admin ou outras rotas web.
+ */
+if (file_exists(__DIR__ . '/groups/layouts/app.php')) {
+    include_once(__DIR__ . '/groups/layouts/app.php');
+}
 
-/*
-|--------------------------------------------------------------------------
-| SPA Fallback (Vue Router - History Mode)
-|--------------------------------------------------------------------------
-| Qualquer rota que NÃO seja /api/* vai renderizar o Blade principal
-*/
+/**
+ * SPA fallback (Vue Router history mode)
+ * Qualquer rota que NÃO seja:
+ * - /api/*
+ * - /admin*
+ * vai renderizar o Blade do SPA.
+ */
 Route::get('/{any}', function () {
     return view('layouts.app');
-})->where('any', '^(?!api).*$');
+})->where('any', '^(?!api|admin).*$');
