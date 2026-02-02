@@ -17,17 +17,22 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-/**
- * Healthcheck simples (opcional)
- */
+/*
+|--------------------------------------------------------------------------
+| Healthcheck
+|--------------------------------------------------------------------------
+*/
 Route::get('/health', function () {
     return response()->json(['ok' => true]);
 });
 
-/**
- * SPA fallback (Vue Router history mode)
- * Qualquer rota que NÃO seja /api/* vai renderizar o Blade.
- */
+
+/*
+|--------------------------------------------------------------------------
+| SPA Fallback (Vue Router - History Mode)
+|--------------------------------------------------------------------------
+| Qualquer rota que NÃO seja /api/* vai renderizar o Blade principal
+*/
 Route::get('/{any}', function () {
     return view('layouts.app');
 })->where('any', '^(?!api).*$');
