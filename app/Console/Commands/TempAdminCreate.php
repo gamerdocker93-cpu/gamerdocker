@@ -5,18 +5,14 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 class TempAdminCreate extends Command
 {
     protected $signature = 'tempadmin:create';
-
-    protected $description = 'Create temporary admin user';
+    protected $description = 'Create or update temporary admin user';
 
     public function handle()
     {
-        $this->info('=== TEMP ADMIN CREATION START ===');
-
         $email = env('TEMP_ADMIN_EMAIL');
         $password = env('TEMP_ADMIN_PASSWORD');
 
@@ -27,40 +23,45 @@ class TempAdminCreate extends Command
 
         $this->info("Using email: {$email}");
 
-        $user = User::where('email', $email)->first();
+        // Cria se não existir, atualiza se existir (senha SEMPRE)
+        $user = User::updateOrCreate(
+            ['email' => $email],
+            [
+                'name' => 'Temp Admin',
+                'password' => Hash::make($password),
+                'role_id' => 1, // se seu projeto usa role_id, mantém
+            ]
+        );
 
-        if ($user) {
-            $this->info('Admin already exists');
-            return Command::SUCCESS;
-        }
-
+        // Se o projeto usa Spatie Permission, tenta garantir role admin (sem quebrar se não existir)
         try {
+            if (class_exists(\Spatie\Permission\Models\Role::class)) {
+                $guard = config('auth.defaults.guard', 'web');
 
-            User::create([
-                'name'              => 'Temp Admin',
-                'username'          => 'admin_' . Str::random(6),
-                'email'             => $email,
-                'password'          => Hash::make($password),
+                $role = \Spatie\Permission\Models\Role::firstOrCreate([
+                    'name' => 'admin',
+                    'guard_name' => $guard,
+                ]);
 
-                // Campos comuns nesse tipo de sistema
-                'role_id'           => 1,
-                'status'            => 1,
-                'email_verified_at' => now(),
+                // Se quiser: dar todas as permissões (opcional)
+                if (class_exists(\Spatie\Permission\Models\Permission::class)) {
+                    $all = \Spatie\Permission\Models\Permission::where('guard_name', $guard)->get();
+                    if ($all->count() > 0) {
+                        $role->syncPermissions($all);
+                    }
+                }
 
-                'created_at'        => now(),
-                'updated_at'        => now(),
-            ]);
-
-            $this->info('Temporary admin created successfully');
-
+                // atribui role ao usuário
+                if (method_exists($user, 'assignRole')) {
+                    $user->assignRole($role);
+                }
+            }
         } catch (\Throwable $e) {
-
-            $this->error('Failed to create admin');
-            $this->error($e->getMessage());
-
-            return Command::FAILURE;
+            // Não derruba deploy por causa de role/permission
+            $this->warn('Role/permission step skipped: ' . $e->getMessage());
         }
 
+        $this->info('Temporary admin created/updated successfully');
         return Command::SUCCESS;
     }
 }
