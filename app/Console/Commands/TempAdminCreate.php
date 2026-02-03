@@ -13,8 +13,17 @@ class TempAdminCreate extends Command
 
     public function handle()
     {
+        // Lê primeiro TEMP_ADMIN_*
         $email = env('TEMP_ADMIN_EMAIL');
         $password = env('TEMP_ADMIN_PASSWORD');
+
+        // Fallback: se o Railway estiver usando prefixo GAMERDOCKER_*
+        if (!$email) {
+            $email = env('GAMERDOCKER_TEMP_ADMIN_EMAIL');
+        }
+        if (!$password) {
+            $password = env('GAMERDOCKER_TEMP_ADMIN_PASSWORD');
+        }
 
         if (!$email || !$password) {
             $this->error('TEMP_ADMIN_EMAIL or TEMP_ADMIN_PASSWORD not set');
@@ -23,45 +32,28 @@ class TempAdminCreate extends Command
 
         $this->info("Using email: {$email}");
 
-        // Cria se não existir, atualiza se existir (senha SEMPRE)
-        $user = User::updateOrCreate(
-            ['email' => $email],
-            [
-                'name' => 'Temp Admin',
-                'password' => Hash::make($password),
-                'role_id' => 1, // se seu projeto usa role_id, mantém
-            ]
-        );
+        $user = User::where('email', $email)->first();
 
-        // Se o projeto usa Spatie Permission, tenta garantir role admin (sem quebrar se não existir)
-        try {
-            if (class_exists(\Spatie\Permission\Models\Role::class)) {
-                $guard = config('auth.defaults.guard', 'web');
-
-                $role = \Spatie\Permission\Models\Role::firstOrCreate([
-                    'name' => 'admin',
-                    'guard_name' => $guard,
-                ]);
-
-                // Se quiser: dar todas as permissões (opcional)
-                if (class_exists(\Spatie\Permission\Models\Permission::class)) {
-                    $all = \Spatie\Permission\Models\Permission::where('guard_name', $guard)->get();
-                    if ($all->count() > 0) {
-                        $role->syncPermissions($all);
-                    }
-                }
-
-                // atribui role ao usuário
-                if (method_exists($user, 'assignRole')) {
-                    $user->assignRole($role);
-                }
+        if ($user) {
+            // Atualiza senha e garante role_id
+            $user->password = Hash::make($password);
+            if (isset($user->role_id)) {
+                $user->role_id = 1;
             }
-        } catch (\Throwable $e) {
-            // Não derruba deploy por causa de role/permission
-            $this->warn('Role/permission step skipped: ' . $e->getMessage());
+            $user->save();
+
+            $this->info('Admin already exists - password updated successfully');
+            return Command::SUCCESS;
         }
 
-        $this->info('Temporary admin created/updated successfully');
+        User::create([
+            'name' => 'Temp Admin',
+            'email' => $email,
+            'password' => Hash::make($password),
+            'role_id' => 1,
+        ]);
+
+        $this->info('Temporary admin created successfully');
         return Command::SUCCESS;
     }
 }
