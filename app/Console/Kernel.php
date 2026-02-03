@@ -12,6 +12,7 @@ class Kernel extends ConsoleKernel
      */
     protected $commands = [
         \App\Console\Commands\TempAdminCreate::class,
+        \App\Console\Commands\FixAdminRole::class,
     ];
 
     /**
