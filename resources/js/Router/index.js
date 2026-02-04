@@ -1,4 +1,4 @@
-import { createWebHistory, createRouter } from "vue-router";
+import { createWebHashHistory, createRouter } from "vue-router";
 
 import HomePage from "@/Pages/Home/HomePage.vue";
 import SportPage from "@/Pages/Sport/SportPage.vue";
@@ -83,7 +83,8 @@ export const routes = [
 ];
 
 const router = createRouter({
-  history: createWebHistory("/"),
+  // HASH mode: não precisa de rewrite no Railway
+  history: createWebHashHistory(),
   routes,
   scrollBehavior() {
     return { top: 0 };
