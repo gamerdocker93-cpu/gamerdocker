@@ -1,5 +1,5 @@
 document.body.insertAdjacentHTML('afterbegin',
-  '<div style="padding:10px;background:#065f46;color:#fff;font-family:monospace;">JS app.js carregou ✅</div>'
+  '<div style="padding:10px;background:#065f46;color:#fff;font-family:monospace;">JS app.js carregou </div>'
 );
 console.log('[BOOT] app.js carregou');
 
@@ -138,7 +138,7 @@ app.use(router);
 app.directive("maska", vMaska)
 
 /**
- * ✅ PINIA (MOVIDO PRA CIMA)
+ * PINIA (MOVIDO PRA CIMA)
  * Precisa estar ativo ANTES de usar qualquer Store.
  */
 const pinia = createPinia()
@@ -156,7 +156,7 @@ app.use(i18nVue, {
 });
 
 /**
- * ✅ MOUNT (mantido)
+ * MOUNT (mantido)
  * Se existir #app, monta nele. Senão tenta #viperpro.
  */
 const mountEl =
