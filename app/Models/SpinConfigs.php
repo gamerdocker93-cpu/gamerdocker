@@ -21,6 +21,7 @@ class SpinConfigs extends Model
      */
     public function getPrizesArrayAttribute(): mixed
     {
-        return json_decode($this->attributes['prizes'], true);
+        $prizes = $this->attributes['prizes'] ?? '[]';
+        return json_decode($prizes ?: '[]', true);
     }
 }
