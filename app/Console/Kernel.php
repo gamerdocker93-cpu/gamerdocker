@@ -14,6 +14,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\TempAdminCreate::class,
         \App\Console\Commands\FixAdminRole::class,
         \App\Console\Commands\GamesKeysInit::class,
+        \App\Console\Commands\SpinConfigsInit::class,
     ];
 
     /**
