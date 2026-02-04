@@ -123,11 +123,6 @@
 </head>
 
 <body color-theme="dark" class="bg-base text-gray-800 dark:text-gray-300">
-    {{-- DEBUG VISUAL (mantido) --}}
-    <div style="padding:12px;font-size:14px;color:#fff;opacity:.7;">
-        Layout carregado (Blade OK). Se a tela continuar vazia, é JS/Front não montando.
-    </div>
-
     {{-- APP ROOT (SPA) --}}
     <div id="app">
         <div style="padding:12px;color:#fff;opacity:.85;">
@@ -164,24 +159,5 @@
     @if(!empty($custom['custom_body']))
         {!! $custom['custom_body'] !!}
     @endif
-
-    <script>
-      window.addEventListener('error', function (e) {
-        document.body.insertAdjacentHTML('afterbegin',
-          '<div style="padding:12px;background:#7f1d1d;color:#fff;font-family:monospace;white-space:pre-wrap;">' +
-          'JS ERROR: ' + (e.message || 'unknown') + '\n' +
-          (e.filename || '') + ':' + (e.lineno || '') + ':' + (e.colno || '') +
-          '</div>'
-        );
-      });
-
-      window.addEventListener('unhandledrejection', function (e) {
-        document.body.insertAdjacentHTML('afterbegin',
-          '<div style="padding:12px;background:#7f1d1d;color:#fff;font-family:monospace;white-space:pre-wrap;">' +
-          'PROMISE REJECTION: ' + (e.reason ? (e.reason.message || String(e.reason)) : 'unknown') +
-          '</div>'
-        );
-      });
-    </script>
 </body>
 </html>
