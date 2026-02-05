@@ -83,6 +83,7 @@ export const routes = [
 ];
 
 const router = createRouter({
+  // HASH mode: não precisa de rewrite no Railway
   history: createWebHashHistory(),
   routes,
   scrollBehavior() {
@@ -90,22 +91,24 @@ const router = createRouter({
   },
 });
 
-router.beforeEach((to, from, next) => {
-  if (to.meta?.auth) {
-    const auth = useAuthStore();
+router.beforeEach(async (to, from, next) => {
+  const auth = useAuthStore();
 
-    // fallback: se tem token, não derruba pra home só porque isAuth ainda não setou
-    const hasToken = !!localStorage.getItem("token");
-
-    if (auth.isAuth || hasToken) {
-      if (hasToken && !auth.isAuth) auth.setIsAuth(true);
-      next();
-      return;
+  // ✅ se existe token e o Pinia ainda não marcou auth, valida 1x no backend
+  const hasToken = !!localStorage.getItem("token");
+  if (hasToken && !auth.isAuth) {
+    try {
+      await auth.checkToken();
+    } catch (e) {
+      // se der erro, o próprio checkToken faz logout/redirect
     }
+  }
 
-    next({ name: "home" });
+  if (to.meta?.auth) {
+    auth.isAuth ? next() : next({ name: "home" });
     return;
   }
+
   next();
 });
 
