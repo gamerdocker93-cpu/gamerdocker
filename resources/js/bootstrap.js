@@ -2,32 +2,33 @@ import axios from "axios";
 
 window.axios = axios;
 
-// garante que axios chama a mesma origem do SPA (Railway)
+// mantém same-origin
 window.axios.defaults.baseURL = "/";
-
-// header padrão
 window.axios.defaults.headers.common["X-Requested-With"] = "XMLHttpRequest";
 
-// CSRF correto (Laravel espera o valor do meta "csrf-token")
-const csrf = document
-  .querySelector('meta[name="csrf-token"]')
-  ?.getAttribute("content");
+// CSRF do meta (não quebra se não existir)
+try {
+  const csrf = document
+    .querySelector('meta[name="csrf-token"]')
+    ?.getAttribute("content");
 
-if (csrf) {
-  window.axios.defaults.headers.common["X-CSRF-TOKEN"] = csrf;
+  if (csrf) {
+    window.axios.defaults.headers.common["X-CSRF-TOKEN"] = csrf;
+  }
+} catch (e) {
+  // não deixa quebrar o app
 }
 
-// se tiver token salvo, manda em TODAS as requisições (evita cair no /auth/redirect/google)
-const token = localStorage.getItem("token");
-if (token) {
-  window.axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+// Authorization Bearer (não quebra se localStorage falhar)
+try {
+  const token = window?.localStorage?.getItem("token");
+  if (token) {
+    window.axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+  }
+} catch (e) {
+  // não deixa quebrar o app
 }
 
 /**
- * Echo/Pusher fica opcional (pode ligar depois).
- * Deixa desligado pra não quebrar nada em deploy.
+ * Echo/Pusher fica desligado por enquanto.
  */
-// import Echo from "laravel-echo";
-// import Pusher from "pusher-js";
-// window.Pusher = Pusher;
-// window.Echo = new Echo({...});
