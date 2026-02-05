@@ -127,20 +127,17 @@
     </BaseLayout>
 </template>
 
-
 <script>
-
 import { RouterLink } from "vue-router";
 import BaseLayout from "@/Layouts/BaseLayout.vue";
 import WalletSideMenu from "@/Pages/Profile/Components/WalletSideMenu.vue";
-import {useToast} from "vue-toastification";
-import {useAuthStore} from "@/Stores/Auth.js";
+import { useToast } from "vue-toastification";
 import HttpApi from "@/Services/HttpApi.js";
-import {useSettingStore} from "@/Stores/SettingStore.js";
+import { useSettingStore } from "@/Stores/SettingStore.js";
 
 export default {
     props: [],
-    components: {WalletSideMenu, BaseLayout, RouterLink },
+    components: { WalletSideMenu, BaseLayout, RouterLink },
     data() {
         return {
             isLoading: false,
@@ -148,36 +145,34 @@ export default {
             wallet: null,
             mywallets: null,
             setting: null,
-        }
+        };
     },
     setup(props) {
-
-
         return {};
     },
-    computed: {
-
-    },
-    mounted() {
-
-    },
+    computed: {},
+    mounted() {},
     methods: {
         setWallet: function(id) {
             const _this = this;
             const _toast = useToast();
             _this.isLoadingWallet = true;
 
-            HttpApi.post('profile/mywallet/'+ id, {})
-                .then(response => {
-                   _this.getMyWallet();
+            HttpApi.post("profile/mywallet/" + id, {})
+                .then(async () => {
+                    // Atualiza dados sem recarregar a página (evita cair na HOME no hash mode)
+                    await _this.getWallet();
+                    await _this.getMyWallet();
                     _this.isLoadingWallet = false;
-                    window.location.reload();
-
                 })
                 .catch(error => {
-                    Object.entries(JSON.parse(error.request.responseText)).forEach(([key, value]) => {
-                        _toast.error(`${value}`);
-                    });
+                    try {
+                        Object.entries(JSON.parse(error.request.responseText)).forEach(([key, value]) => {
+                            _toast.error(`${value}`);
+                        });
+                    } catch (e) {
+                        _toast.error("Erro ao trocar carteira.");
+                    }
                     _this.isLoadingWallet = false;
                 });
         },
@@ -186,15 +181,19 @@ export default {
             const _toast = useToast();
             _this.isLoadingWallet = true;
 
-            HttpApi.get('profile/wallet')
+            return HttpApi.get("profile/wallet")
                 .then(response => {
                     _this.wallet = response.data.wallet;
                     _this.isLoadingWallet = false;
                 })
                 .catch(error => {
-                    Object.entries(JSON.parse(error.request.responseText)).forEach(([key, value]) => {
-                        _toast.error(`${value}`);
-                    });
+                    try {
+                        Object.entries(JSON.parse(error.request.responseText)).forEach(([key, value]) => {
+                            _toast.error(`${value}`);
+                        });
+                    } catch (e) {
+                        _toast.error("Erro ao carregar carteira.");
+                    }
                     _this.isLoadingWallet = false;
                 });
         },
@@ -202,14 +201,18 @@ export default {
             const _this = this;
             const _toast = useToast();
 
-            HttpApi.get('profile/mywallet')
+            return HttpApi.get("profile/mywallet")
                 .then(response => {
                     _this.mywallets = response.data.wallets;
                 })
                 .catch(error => {
-                    Object.entries(JSON.parse(error.request.responseText)).forEach(([key, value]) => {
-                        _toast.error(`${value}`);
-                    });
+                    try {
+                        Object.entries(JSON.parse(error.request.responseText)).forEach(([key, value]) => {
+                            _toast.error(`${value}`);
+                        });
+                    } catch (e) {
+                        _toast.error("Erro ao carregar lista de carteiras.");
+                    }
                 });
         },
         getSetting: function() {
@@ -217,7 +220,7 @@ export default {
             const settingStore = useSettingStore();
             const settingData = settingStore.setting;
 
-            if(settingData) {
+            if (settingData) {
                 _this.setting = settingData;
             }
 
@@ -232,12 +235,8 @@ export default {
         this.getMyWallet();
         this.getSetting();
     },
-    watch: {
-
-    },
+    watch: {},
 };
 </script>
 
-<style scoped>
-
-</style>
+<style scoped></style>
