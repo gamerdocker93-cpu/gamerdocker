@@ -13,7 +13,6 @@ import "vue-toastification/dist/index.css";
 import '@/index.css';
 
 import App from './App.vue';
-import { useAuthStore } from "@/Stores/Auth.js";
 
 /**
  * APP
@@ -58,11 +57,11 @@ app.config.globalProperties.state = {
       .toString()
       .toLowerCase()
       .trim()
-      .replace(/\s+/g, '-') // espaços -> hífen
-      .replace(/[^\w\-]+/g, '') // remove especiais
-      .replace(/\-\-+/g, '-') // múltiplos hífens -> 1
-      .replace(/^-+/, '') // remove hífen do início
-      .replace(/-+$/, ''); // remove hífen do final
+      .replace(/\s+/g, '-')
+      .replace(/[^\w\-]+/g, '')
+      .replace(/\-\-+/g, '-')
+      .replace(/^-+/, '')
+      .replace(/-+$/, '');
   },
   timeAgo(value) {
     return moment(value).fromNow();
@@ -122,23 +121,22 @@ const optionsToast = {}
 app.use(Toast, optionsToast)
 
 /**
- * Router
+ * PINIA (TEM QUE SER ANTES DO ROUTER)
+ */
+const pinia = createPinia()
+app.use(pinia);
+
+/**
+ * Router (AGORA PINIA JÁ ESTÁ ATIVO)
  */
 import router from './Router';
+pinia.use(({ store }) => { store.router = markRaw(router) })
 app.use(router);
 
 /**
  * Directive
  */
 app.directive("maska", vMaska)
-
-/**
- * PINIA (MOVIDO PRA CIMA)
- * Precisa estar ativo ANTES de usar qualquer Store.
- */
-const pinia = createPinia()
-pinia.use(({ store }) => { store.router = markRaw(router) })
-app.use(pinia);
 
 /**
  * i18n
@@ -151,8 +149,7 @@ app.use(i18nVue, {
 });
 
 /**
- * MOUNT (mantido)
- * Se existir #app, monta nele. Senão tenta #viperpro.
+ * MOUNT
  */
 const mountEl =
   document.getElementById('app') ||
@@ -165,7 +162,7 @@ if (!mountEl) {
 }
 
 /**
- * Load settings (AGORA DEPOIS do Pinia estar ativo)
+ * Load settings (DEPOIS DO PINIA)
  */
 import { useSettingStore } from "@/Stores/SettingStore.js";
 
@@ -174,14 +171,14 @@ import { useSettingStore } from "@/Stores/SettingStore.js";
   try {
     const settingData = await setting.getSetting();
     setting.setSetting(settingData);
-  } catch (e) {
-    // opcional: console.error(e)
-  }
+  } catch (e) {}
 })()
 
 /**
- * Auth (AGORA DEPOIS do Pinia estar ativo)
+ * Auth (DEPOIS DO PINIA)
  */
+import { useAuthStore } from "@/Stores/Auth.js";
+
 if (localStorage.getItem('token')) {
   (async () => {
     const auth = useAuthStore();
@@ -191,7 +188,6 @@ if (localStorage.getItem('token')) {
       if (user !== undefined) {
         auth.setUser(user);
       }
-      // auth.initializingEcho();
     } catch (e) {
       auth.setIsAuth(false);
     }
