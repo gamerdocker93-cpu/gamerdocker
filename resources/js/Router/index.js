@@ -37,8 +37,7 @@ import ForgotPassword from "@/Pages/Auth/ForgotPassword.vue";
 import ResetPassword from "@/Pages/Auth/ResetPassword.vue";
 
 export const routes = [
-  // ✅ HOME não pode ser "/:action?"
-  { name: "home", path: "/", component: HomePage },
+  { name: "home", path: "/:action?", component: HomePage },
 
   { name: "login", path: "/login", component: LoginPage },
   { name: "register", path: "/register/:code?", component: RegisterPage },
@@ -55,13 +54,11 @@ export const routes = [
 
   { name: "sports", path: "/sports", component: SportPage },
 
-  // Casino
   { name: "casinos", path: "/casinos", component: HomePage },
   { name: "casinoPlayPage", path: "/games/play/:id/:slug", component: CasinoPlayPage },
   { name: "casinosAll", path: "/casino/provider/:provider?/category/:category?", component: CassinoListPage },
   { name: "casinoSearch", path: "/casino/search", component: CassinoSearch },
 
-  // Conteúdo
   { name: "dataPage", path: "/datapage", component: DataPage },
   { name: "recordPage", path: "/records", component: RecordPage },
   { name: "eventsPage", path: "/events", component: EventsPage },
@@ -70,14 +67,12 @@ export const routes = [
   { name: "awardsPage", path: "/awards", component: AwardsPage },
   { name: "landingPage", path: "/landing/spin", component: LandingPage },
 
-  // Termos
   { name: "termsConditionsReference", path: "/terms/conditions-reference", component: ConditionsReference },
   { name: "serviceTerms", path: "/terms/service", component: ServiceTerms },
   { name: "privacyPolicy", path: "/terms/privacy-policy", component: PrivacyPolicy },
   { name: "bonusTerms", path: "/terms/bonus", component: BonusTerms },
   { name: "welcomeBonus", path: "/terms/bonus-welcome", component: WelcomeBonus },
 
-  // Profile (auth)
   { name: "profileAffiliate", path: "/profile/affiliate", component: AffiliatePage, meta: { auth: true } },
   { name: "favoritePage", path: "/profile/favorite", component: FavoritePage, meta: { auth: true } },
   { name: "profileWallet", path: "/profile/wallet", component: WalletPage, meta: { auth: true } },
@@ -85,9 +80,6 @@ export const routes = [
   { name: "profileDeposit", path: "/profile/deposit", component: DepositPage, meta: { auth: true } },
   { name: "profileWithdraw", path: "/profile/withdraw", component: WithdrawPage, meta: { auth: true } },
   { name: "profileTransactions", path: "/profile/transactions", component: TransactionPage, meta: { auth: true } },
-
-  // ✅ Catch-all (tem que ser o último)
-  { path: "/:pathMatch(.*)*", redirect: "/" },
 ];
 
 const router = createRouter({
@@ -101,7 +93,17 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   if (to.meta?.auth) {
     const auth = useAuthStore();
-    auth.isAuth ? next() : next({ name: "login" });
+
+    // fallback: se tem token, não derruba pra home só porque isAuth ainda não setou
+    const hasToken = !!localStorage.getItem("token");
+
+    if (auth.isAuth || hasToken) {
+      if (hasToken && !auth.isAuth) auth.setIsAuth(true);
+      next();
+      return;
+    }
+
+    next({ name: "home" });
     return;
   }
   next();
