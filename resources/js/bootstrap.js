@@ -1,38 +1,33 @@
-/**
- * We'll load the axios HTTP library which allows us to easily issue requests
- * to our Laravel back-end. This library automatically handles sending the
- * CSRF token as a header based on the value of the "XSRF" token cookie.
- */
+import axios from "axios";
 
-import axios from 'axios';
 window.axios = axios;
 
-window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+// garante que axios chama a mesma origem do SPA (Railway)
+window.axios.defaults.baseURL = "/";
+
+// header padrão
+window.axios.defaults.headers.common["X-Requested-With"] = "XMLHttpRequest";
+
+// CSRF correto (Laravel espera o valor do meta "csrf-token")
+const csrf = document
+  .querySelector('meta[name="csrf-token"]')
+  ?.getAttribute("content");
+
+if (csrf) {
+  window.axios.defaults.headers.common["X-CSRF-TOKEN"] = csrf;
+}
+
+// se tiver token salvo, manda em TODAS as requisições (evita cair no /auth/redirect/google)
+const token = localStorage.getItem("token");
+if (token) {
+  window.axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+}
 
 /**
- * Echo exposes an expressive API for subscribing to channels and listening
- * for events that are broadcast by Laravel. Echo and event broadcasting
- * allows your team to easily build robust real-time web applications.
+ * Echo/Pusher fica opcional (pode ligar depois).
+ * Deixa desligado pra não quebrar nada em deploy.
  */
-
-import Echo from 'laravel-echo';
-import Pusher from 'pusher-js';
-
+// import Echo from "laravel-echo";
+// import Pusher from "pusher-js";
 // window.Pusher = Pusher;
-//
-// window.Echo = new Echo({
-//     broadcaster: 'pusher',
-//     key: import.meta.env.VITE_PUSHER_APP_KEY,
-//     cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER ?? 'mt1',
-//     wsHost: import.meta.env.VITE_PUSHER_HOST ? import.meta.env.VITE_PUSHER_HOST : `ws-${import.meta.env.VITE_PUSHER_APP_CLUSTER}.pusher.com`,
-//     wsPort: import.meta.env.VITE_PUSHER_PORT ?? 80,
-//     forceTLS: false,
-//     enabledTransports: ['ws', 'wss'],
-//     // wsHost: import.meta.env.VITE_PUSHER_HOST ? import.meta.env.VITE_PUSHER_HOST : `ws-${import.meta.env.VITE_PUSHER_APP_CLUSTER}.pusher.com`,
-//     // wsPort: import.meta.env.VITE_PUSHER_PORT ?? 80,
-//     // wssPort: import.meta.env.VITE_PUSHER_PORT ?? 443,
-//     //forceTLS: (import.meta.env.VITE_PUSHER_SCHEME ?? 'https') === 'https',
-//     // encrypted: true,
-//     //disableStats: true,
-//     // disabledTransports: ['sockjs', 'xhr_polling', 'xhr_streaming'],
-// });
+// window.Echo = new Echo({...});
