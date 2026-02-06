@@ -24,24 +24,43 @@ class LatestPixPayments extends BaseWidget
         return $table
             ->query(DigitoPayPayment::query())
             ->defaultSort('created_at', 'desc')
+            ->paginated([10, 25, 50])
             ->columns([
+
                 Tables\Columns\TextColumn::make('payment_id')
-                    ->label('Pagamento ID'),
+                    ->label('Pagamento ID')
+                    ->searchable(),
+
                 Tables\Columns\TextColumn::make('pix_key')
-                    ->label('Chave Pix'),
+                    ->label('Chave Pix')
+                    ->searchable(),
+
                 Tables\Columns\TextColumn::make('pix_type')
-                    ->label('Tipo de Chave'),
+                    ->label('Tipo de Chave')
+                    ->badge(),
+
                 Tables\Columns\TextColumn::make('amount')
                     ->money('BRL')
                     ->label('Valor'),
+
                 Tables\Columns\TextColumn::make('status')
+                    ->label('Status')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'pendente' => 'warning',
-                        'pago' => 'success',
+                    ->color(fn (?string $state): string => match ($state) {
+
+                        'pendente', 'pending' => 'warning',
+
+                        'pago', 'paid', 'success' => 'success',
+
+                        'cancelado', 'canceled', 'failed' => 'danger',
+
+                        default => 'gray',
                     }),
-                Tables\Columns\TextColumn::make('dateHumanReadable')
+
+                Tables\Columns\TextColumn::make('created_at')
                     ->label('Data')
+                    ->dateTime('d/m/Y H:i'),
+
             ]);
     }
 
