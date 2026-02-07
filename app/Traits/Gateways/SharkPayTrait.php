@@ -151,30 +151,60 @@ trait SharkPayTrait
                             'message' => 'SharkPay retornou um Pix inválido (0503***). Isso geralmente acontece quando a conta/credenciais Pix na SharkPay não estão configuradas para produção. Preencha as chaves no painel (Gateway) e confirme com a SharkPay que sua conta está habilitada para gerar cobranças reais.',
                         ];
                     }
-                    // Evita notices caso alguma chave não exista
-                    $txidResponse = $pix['invoice']['txid'] ?? null;
-                    $reference = $pix['invoice']['reference'] ?? null;
-                    $copy = $pix['invoice']['copy'] ?? null;
+                    // Resposta da SharkPay pode variar conforme versão/ambiente.
+                    // O front precisa receber o "copia e cola" (payload EMV) em `qrcode` para gerar o QRCode.
+                    $invoice = $pix['invoice'] ?? ($pix['success']['invoice'] ?? ($pix['data']['invoice'] ?? null));
+                    if (!$invoice && is_array($pix)) {
+                        $invoice = $pix;
+                    }
 
-                    if (empty($txidResponse) || empty($copy)) {
+                    $txidResponse = $invoice['txid'] ?? ($invoice['id'] ?? ($invoice['transaction_id'] ?? ($invoice['transactionId'] ?? null)));
+                    $reference = $invoice['reference'] ?? ($invoice['referenceLabel'] ?? ($invoice['invoice_no'] ?? ($invoice['invoiceNo'] ?? null)));
+
+                    $copy = $invoice['copy']
+                        ?? ($invoice['payload']
+                        ?? ($invoice['brCode']
+                        ?? ($invoice['brcode']
+                        ?? ($invoice['emv']
+                        ?? ($invoice['pix']
+                        ?? ($invoice['copiaecola']
+                        ?? ($invoice['copia_e_cola']
+                        ?? ($invoice['copyAndPaste']
+                        ?? ($invoice['copy_and_paste']
+                        ?? ($invoice['qrcode']
+                        ?? ($invoice['qr'] ?? null))))))))))));
+
+                    if (empty($copy) && is_array($pix)) {
+                        $copy = $pix['copy'] ?? ($pix['payload'] ?? ($pix['brCode'] ?? ($pix['qrcode'] ?? null)));
+                    }
+
+                    // Não depende do txid para mostrar QRCode no front; se não vier, usamos o id do pedido.
+                    $txid = $txidResponse ?? (string) $order->id;
+                    $reference = $reference ?? (string) $order->id;
+
+                    if (empty($copy)) {
+                        // Sem payload não tem como gerar QRCode no front.
                         return [
                             'status' => false,
+                            'message' => 'SharkPay não retornou o código PIX (copia e cola). Verifique as credenciais/ambiente da conta.',
                         ];
                     }
 
-                    $checkHash = Helper::GenerateHash('hash:' . $txidResponse, env('DP_PRIVATE_KEY'));
+
+                    $checkHash = Helper::GenerateHash('hash:' . $txid, env('DP_PRIVATE_KEY'));
                     $order->update([
-                        'payment_id' => $txidResponse,
+                        'payment_id' => $txid,
                         'reference' => $reference,
                         'hash' => $checkHash
                     ]);
 
-                    self::SharkPayGenerateDeposit($txidResponse, Helper::amountPrepare($request->amount)); /// gerando deposito
+                    self::SharkPayGenerateDeposit($txid, Helper::amountPrepare($request->amount)); /// gerando deposito
 
                     return [
                         'status' => true,
                         'idTransaction' => $order->id,
                         'qrcode' => $copy,
+                        'payload' => $copy,
                         'type' => 'pix'
                     ];
                 }
