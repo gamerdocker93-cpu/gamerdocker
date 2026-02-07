@@ -23,6 +23,17 @@ trait SharkPayTrait
 {
     protected static $uriSharkPay = 'https://sharkpay.com.br/api/';
 
+
+    /**
+     * Gera um TXID compatível com Pix (1..35 chars, apenas [A-Za-z0-9]).
+     */
+    private static function buildTxid(string|int $seed): string
+    {
+        $raw = 'GD' . (string) $seed . strtoupper(substr(md5((string) $seed . '|' . microtime(true)), 0, 12));
+        $raw = preg_replace('/[^A-Za-z0-9]/', '', $raw) ?? '';
+        return substr($raw, 0, 35);
+    }
+
     /**
      * Generate Credentials
      * Metodo para gerar credenciais
@@ -31,17 +42,33 @@ trait SharkPayTrait
     private static function generateCredentialsSharkPay()
     {
         $gateway = Gateway::first();
-        $response = Http::withBasicAuth($gateway->getAttributes()['shark_public_key'], $gateway->getAttributes()['shark_private_key'])->post(self::$uriSharkPay.'auth');
-        if($response->successful()) {
-            $json = $response->json();
-            $token = $json['success']['token'];
 
-            if($token) {
+        // Segurança: se não existir gateway ou as chaves não estiverem preenchidas, aborta.
+        if (empty($gateway)) {
+            return false;
+        }
+
+        $publicKey  = $gateway->getAttributes()['shark_public_key'] ?? null;
+        $privateKey = $gateway->getAttributes()['shark_private_key'] ?? null;
+
+        if (empty($publicKey) || empty($privateKey)) {
+            return false;
+        }
+
+        $response = Http::withBasicAuth($publicKey, $privateKey)->post(self::$uriSharkPay . 'auth');
+
+        if ($response->successful()) {
+            $json = $response->json();
+            $token = $json['success']['token'] ?? null;
+
+            if ($token) {
                 return $token;
             }
 
             return false;
         }
+
+        return false;
     }
 
     /**
@@ -53,7 +80,7 @@ trait SharkPayTrait
     {
         $setting = Helper::getSetting();
         $rules = [
-            'amount' => ['required', 'numeric', 'min:'.$setting->min_deposit, 'max:'.$setting->max_deposit],
+            'amount' => ['required', 'numeric', 'min:' . $setting->min_deposit, 'max:' . $setting->max_deposit],
             'cpf'    => ['required', 'max:255'],
         ];
 
@@ -62,13 +89,10 @@ trait SharkPayTrait
             return response()->json($validator->errors(), 400);
         }
 
-        if($token = self::generateCredentialsSharkPay()) {
+        if ($token = self::generateCredentialsSharkPay()) {
             $userId = auth('api')->user()->id;
 
-
-
             /// verifica se tem bonus, se sim, já credita
-
             $orderData = [
                 'user_id' => $userId,
                 'payment_method' => 'pix',
@@ -78,58 +102,96 @@ trait SharkPayTrait
                 'status' => 0
             ];
 
-            if(!empty($request->bonus)) {
+            if (!empty($request->bonus)) {
                 $valorFormatado = str_replace(['R$', ' '], '', $request->bonus);
                 $orderData['bonus_amount'] = \Helper::amountPrepare($valorFormatado);
             }
 
             $order = Transaction::create($orderData);
 
-            if($order) {
+            if ($order) {
+                /**
+                 * IMPORTANTE:
+                 * Muitos bancos recusam Pix quando o TXID vem inválido/placeholder (ex: "***").
+                 * Então forçamos um TXID/ReferenceLabel consistente usando o ID do pedido.
+                 * Assim o payload (copia e cola) não deve mais terminar com 0503***.
+                 */
+                $txid = self::buildTxid($order->id);
                 $params = [
                     'amount'     => Helper::amountPrepare($request->amount),
                     'email'      => auth('api')->user()->email,
                     'quantity'   => 1,
                     'discount'   => 0,
                     'invoice_no' => $order->id,
-                    'due_date'   => Carbon::now(),
+                    'due_date'   => Carbon::now()->addMinutes(30)->toIso8601String(),
                     'tax'        => 0,
-                    'notes'      => 'Recarga de R$'.$request->amount,
+                    'notes'      => 'Recarga de R$' . $request->amount,
                     'item_name'  => 'Recarga',
                     'document'   => Helper::soNumero($request->cpf),
                     'client'     => auth('api')->user()->name,
+
+                    // Compatibilidade: algumas APIs usam txid, outras referenceLabel
+                    'txid' => $txid,
+                    'referenceLabel' => $txid,
                 ];
 
                 $response = Http::withHeaders([
-                    'Authorization' => 'Bearer '. $token,
+                    'Authorization' => 'Bearer ' . $token,
                     'Content-Type' => 'application/json',
                     'Accept' => 'application/json',
-                ])->post(self::$uriSharkPay.'pix/create', $params);
+                ])->post(self::$uriSharkPay . 'pix/create', $params);
 
-                if($response->successful()) {
+                if ($response->successful()) {
                     $pix = $response->json();
-                    $txid = $pix['invoice']['txid'];
-                    $reference = $pix['invoice']['reference'];
+                    $copy = $pix['invoice']['copy'] ?? '';
+                    // Se vier placeholder (0503***), o banco recusa o Pix.
+                    if (is_string($copy) && preg_match('/0503\*{3}/', $copy)) {
+                        return [
+                            'status' => false,
+                            'message' => 'SharkPay retornou um Pix inválido (0503***). Isso geralmente acontece quando a conta/credenciais Pix na SharkPay não estão configuradas para produção. Preencha as chaves no painel (Gateway) e confirme com a SharkPay que sua conta está habilitada para gerar cobranças reais.',
+                        ];
+                    }
+                    // Evita notices caso alguma chave não exista
+                    $txidResponse = $pix['invoice']['txid'] ?? null;
+                    $reference = $pix['invoice']['reference'] ?? null;
+                    $copy = $pix['invoice']['copy'] ?? null;
 
-                    $checkHash = Helper::GenerateHash('hash:'.$txid, env('DP_PRIVATE_KEY'));
-                    $order->update(['payment_id' => $txid, 'reference' => $reference, 'hash' => $checkHash]);
-                    self::SharkPayGenerateDeposit($txid, Helper::amountPrepare($request->amount)); /// gerando deposito
+                    if (empty($txidResponse) || empty($copy)) {
+                        return [
+                            'status' => false,
+                        ];
+                    }
+
+                    $checkHash = Helper::GenerateHash('hash:' . $txidResponse, env('DP_PRIVATE_KEY'));
+                    $order->update([
+                        'payment_id' => $txidResponse,
+                        'reference' => $reference,
+                        'hash' => $checkHash
+                    ]);
+
+                    self::SharkPayGenerateDeposit($txidResponse, Helper::amountPrepare($request->amount)); /// gerando deposito
 
                     return [
                         'status' => true,
                         'idTransaction' => $order->id,
-                        'qrcode' => $pix['invoice']['copy'],
+                        'qrcode' => $copy,
                         'type' => 'pix'
                     ];
                 }
+
                 return [
                     'status' => false,
                 ];
             }
+
             return [
                 'status' => false,
             ];
         }
+
+        return [
+            'status' => false,
+        ];
     }
 
     /**
@@ -145,13 +207,13 @@ trait SharkPayTrait
         $wallet = Wallet::where('user_id', $userId)->where('active', 1)->first();
 
         Deposit::create([
-            'payment_id'=> $idTransaction,
-            'user_id'   => $userId,
-            'amount'    => $amount,
-            'type'      => 'pix',
-            'currency'  => $wallet->currency,
-            'symbol'    => $wallet->symbol,
-            'status'    => 0
+            'payment_id' => $idTransaction,
+            'user_id'    => $userId,
+            'amount'     => $amount,
+            'type'       => 'pix',
+            'currency'   => $wallet->currency,
+            'symbol'     => $wallet->symbol,
+            'status'     => 0
         ]);
     }
 
@@ -161,20 +223,20 @@ trait SharkPayTrait
      */
     public static function sharkpayCheckStatus($payment_id)
     {
-        if($token = self::generateCredentialsSharkPay()) {
+        if ($token = self::generateCredentialsSharkPay()) {
             $response = Http::withHeaders([
-                'Authorization' => 'Bearer '. $token,
+                'Authorization' => 'Bearer ' . $token,
                 'Accept' => 'application/json',
-            ])->get(self::$uriSharkPay.'pix/txid/'.$payment_id);
+            ])->get(self::$uriSharkPay . 'pix/txid/' . $payment_id);
 
-            if($response->successful()) {
+            if ($response->successful()) {
                 $json = $response->json();
-                if($json) {
+                if ($json) {
                     $invoice = $json['invoice'];
-                    if($invoice['status'] == 1) {
-                       return true;
+                    if ($invoice['status'] == 1) {
+                        return true;
                     }
-                   return false;
+                    return false;
                 }
                 return false;
             }
@@ -193,20 +255,20 @@ trait SharkPayTrait
     public static function consultStatusTransactionSharkpay($idOrder)
     {
         $order = Transaction::find($idOrder);
-        if(!empty($order)) {
-            if($token = self::generateCredentialsSharkPay()) {
+        if (!empty($order)) {
+            if ($token = self::generateCredentialsSharkPay()) {
                 $response = Http::withHeaders([
-                    'Authorization' => 'Bearer '. $token,
+                    'Authorization' => 'Bearer ' . $token,
                     'Accept' => 'application/json',
-                ])->get(self::$uriSharkPay.'pix/txid/'.$order->payment_id);
+                ])->get(self::$uriSharkPay . 'pix/txid/' . $order->payment_id);
 
-                if($response->successful()) {
+                if ($response->successful()) {
                     $json = $response->json();
-                    if($json) {
+                    if ($json) {
                         $invoice = $json['invoice'];
 
-                        if($invoice['status'] == 1) {
-                            if(self::finalizePaymentSharpay($order->payment_id)) {
+                        if ($invoice['status'] == 1) {
+                            if (self::finalizePaymentSharpay($order->payment_id)) {
                                 return response()->json(['status' => 'PAID']);
                             }
                         }
@@ -225,18 +287,18 @@ trait SharkPayTrait
      */
     public static function CheckStatus($idTransaction)
     {
-        if($token = self::generateCredentialsSharkPay()) {
+        if ($token = self::generateCredentialsSharkPay()) {
             $response = Http::withHeaders([
-                'Authorization' => 'Bearer '. $token,
+                'Authorization' => 'Bearer ' . $token,
                 'Accept' => 'application/json',
-            ])->get(self::$uriSharkPay.'pix/txid/'.$idTransaction);
+            ])->get(self::$uriSharkPay . 'pix/txid/' . $idTransaction);
 
-            if($response->successful()) {
+            if ($response->successful()) {
                 $json = $response->json();
-                if($json) {
+                if ($json) {
                     $invoice = $json['invoice'];
 
-                    if($invoice['status'] == 1) {
+                    if ($invoice['status'] == 1) {
                         return true;
                     }
                     return false;
@@ -252,16 +314,16 @@ trait SharkPayTrait
      * @dev victormsalatiel - Corra de golpista, me chame no instagram
      * @return ?bool
      */
-    public static function finalizePaymentSharpay($idTransaction) : ?bool
+    public static function finalizePaymentSharpay($idTransaction): ?bool
     {
-        $checkHash = Helper::GenerateHash('hash:'.$idTransaction, env('DP_PRIVATE_KEY'));
+        $checkHash = Helper::GenerateHash('hash:' . $idTransaction, env('DP_PRIVATE_KEY'));
         $transaction = Transaction::where('payment_id', $idTransaction)
             ->where('status', 0)
             ->where('hash', $checkHash)
             ->first();
 
-        if(!empty($transaction)) {
-            if(self::CheckStatus($idTransaction)) {
+        if (!empty($transaction)) {
+            if (self::CheckStatus($idTransaction)) {
                 return self::CompleteDeposit($idTransaction);
             }
             return false;
@@ -274,37 +336,37 @@ trait SharkPayTrait
      * @param $idTransaction
      * @return bool
      */
-    public static function CompleteDeposit($idTransaction) : bool
+    public static function CompleteDeposit($idTransaction): bool
     {
         $transaction = Transaction::where('payment_id', $idTransaction)->where('status', 0)->first();
         $setting = Helper::getSetting();
 
-        if(!empty($transaction)) {
+        if (!empty($transaction)) {
 
             /// confirma se realmente foi confirmado
-            if(self::sharkpayCheckStatus($transaction->payment_id)) {
+            if (self::sharkpayCheckStatus($transaction->payment_id)) {
                 $user = User::find($transaction->user_id);
                 $wallet = Wallet::where('user_id', $transaction->user_id)->first();
-                if(!empty($wallet)) {
+                if (!empty($wallet)) {
 
                     $checkTransactions = Transaction::where('user_id', $transaction->user_id)
                         ->where('status', 1)
                         ->count();
 
-                    if($checkTransactions == 0 || empty($checkTransactions)) {
-                        if($transaction->accept_bonus) {
+                    if ($checkTransactions == 0 || empty($checkTransactions)) {
+                        if ($transaction->accept_bonus) {
                             /// pagar o bonus
                             $bonus = Helper::porcentagem_xn($setting->initial_bonus, $transaction->price);
                             $wallet->increment('balance_bonus', $bonus);
 
-                            if(!$setting->disable_rollover) {
+                            if (!$setting->disable_rollover) {
                                 $wallet->update(['balance_bonus_rollover' => $bonus * $setting->rollover]);
                             }
                         }
                     }
 
                     /// rollover deposito
-                    if($setting->disable_rollover == false) {
+                    if ($setting->disable_rollover == false) {
                         $wallet->increment('balance_deposit_rollover', ($transaction->price * intval($setting->rollover_deposit)));
                     }
 
@@ -312,15 +374,15 @@ trait SharkPayTrait
                     Helper::payBonusVip($wallet, $transaction->price);
 
                     /// quando tiver desativado o rollover, ele manda o dinheiro depositado direto pra carteira de saque
-                    if($setting->disable_rollover) {
+                    if ($setting->disable_rollover) {
                         $wallet->increment('balance_withdrawal', $transaction->price); /// carteira de saque
-                    }else{
+                    } else {
                         $wallet->increment('balance', $transaction->price); /// carteira de jogos, não permite sacar
                     }
 
-                    if($transaction->update(['status' => 1])) {
+                    if ($transaction->update(['status' => 1])) {
                         $deposit = Deposit::where('payment_id', $idTransaction)->where('status', 0)->first();
-                        if(!empty($deposit)) {
+                        if (!empty($deposit)) {
 
                             /// fazer o deposito em cpa
                             $affHistoryCPA = AffiliateHistory::where('user_id', $user->id)
@@ -329,7 +391,7 @@ trait SharkPayTrait
                                 //->where('status', 0)
                                 ->first();
 
-                            if(!empty($affHistoryCPA)) {
+                            if (!empty($affHistoryCPA)) {
                                 /// faz uma soma de depositos feitos pelo indicado
                                 $affHistoryCPA->increment('deposited_amount', $transaction->price);
 
@@ -337,12 +399,12 @@ trait SharkPayTrait
                                 $sponsorCpa = User::find($user->inviter);
 
                                 /// verifica se foi pago ou nnão
-                                if(!empty($sponsorCpa) && $affHistoryCPA->status == 'pendente') {
+                                if (!empty($sponsorCpa) && $affHistoryCPA->status == 'pendente') {
 
-                                    if($affHistoryCPA->deposited_amount >= $sponsorCpa->affiliate_baseline || $deposit->amount >= $sponsorCpa->affiliate_baseline) {
+                                    if ($affHistoryCPA->deposited_amount >= $sponsorCpa->affiliate_baseline || $deposit->amount >= $sponsorCpa->affiliate_baseline) {
                                         $walletCpa = Wallet::where('user_id', $affHistoryCPA->inviter)->first();
 
-                                        if(!empty($walletCpa)) {
+                                        if (!empty($walletCpa)) {
 
                                             /// paga o valor de CPA
                                             $walletCpa->increment('refer_rewards', $sponsorCpa->affiliate_cpa); /// coloca a comissão
@@ -352,7 +414,7 @@ trait SharkPayTrait
                                 }
                             }
 
-                            if($deposit->update(['status' => 1])) {
+                            if ($deposit->update(['status' => 1])) {
                                 return true;
                             }
                             return false;
@@ -381,13 +443,13 @@ trait SharkPayTrait
         $wallet = Wallet::where('user_id', $userId)->first();
 
         Deposit::create([
-            'payment_id'=> $idTransaction,
-            'user_id'   => $userId,
-            'amount'    => $amount,
-            'type'      => 'pix',
-            'currency'  => $wallet->currency,
-            'symbol'    => $wallet->symbol,
-            'status'    => 0
+            'payment_id' => $idTransaction,
+            'user_id'    => $userId,
+            'amount'     => $amount,
+            'type'       => 'pix',
+            'currency'   => $wallet->currency,
+            'symbol'     => $wallet->symbol,
+            'status'     => 0
         ]);
     }
 
@@ -418,8 +480,8 @@ trait SharkPayTrait
      */
     public static function pixCashOutSharkPay(array $array): bool
     {
-        if($token = self::generateCredentialsSharkPay()) {
-            if(!empty($array['user_id'])) {
+        if ($token = self::generateCredentialsSharkPay()) {
+            if (!empty($array['user_id'])) {
                 $user = User::find($array['user_id']);
                 $params = [
                     'amount'        => Helper::amountPrepare($array['amount']),
@@ -431,28 +493,37 @@ trait SharkPayTrait
                 ];
 
                 $response = Http::withHeaders([
-                    'Authorization' => 'Bearer '. $token,
+                    'Authorization' => 'Bearer ' . $token,
                     'Content-Type' => 'application/json',
                     'Accept' => 'application/json',
-                ])->post(self::$uriSharkPay.'pixout/create', $params);
+                ])->post(self::$uriSharkPay . 'pixout/create', $params);
 
-                if($response->successful()) {
-                    if(isset($responseData['withdraw']) && $responseData['withdraw']['status'] == 'PAID') {
+                if ($response->successful()) {
+                    $responseData = $response->json();
+
+                    if (isset($responseData['withdraw']) && ($responseData['withdraw']['status'] ?? null) == 'PAID') {
                         $withdrawal = Withdrawal::find($array['withdrawal_id']);
-                        if(!empty($withdrawal)) {
-                            if($withdrawal->update(['status' => 1, 'in_queue' => 2, 'payment_id' => $responseData['withdraw']['reference']])) {
+                        if (!empty($withdrawal)) {
+                            if ($withdrawal->update([
+                                'status' => 1,
+                                'in_queue' => 2,
+                                'payment_id' => $responseData['withdraw']['reference'] ?? null
+                            ])) {
                                 return true;
                             }
                             return false;
                         }
                     }
                     return false;
-                }else{
-                    dd($response->body());
                 }
+
+                // Em produção, não pode dar dd(); apenas retorna false
+                return false;
             }
             return false;
         }
+
+        return false;
     }
 
     /**
@@ -462,8 +533,8 @@ trait SharkPayTrait
      */
     public static function pixCashOutSharkPayAffiliate(array $array): bool
     {
-        if($token = self::generateCredentialsSharkPay()) {
-            if(!empty($array['user_id'])) {
+        if ($token = self::generateCredentialsSharkPay()) {
+            if (!empty($array['user_id'])) {
                 $user = User::find($array['user_id']);
                 $params = [
                     'amount'        => Helper::amountPrepare($array['amount']),
@@ -475,28 +546,36 @@ trait SharkPayTrait
                 ];
 
                 $response = Http::withHeaders([
-                    'Authorization' => 'Bearer '. $token,
+                    'Authorization' => 'Bearer ' . $token,
                     'Content-Type' => 'application/json',
                     'Accept' => 'application/json',
-                ])->post(self::$uriSharkPay.'pixout/create', $params);
+                ])->post(self::$uriSharkPay . 'pixout/create', $params);
 
-                if($response->successful()) {
-                    if(isset($responseData['withdraw']) && $responseData['withdraw']['status'] == 'PAID') {
+                if ($response->successful()) {
+                    $responseData = $response->json();
 
+                    if (isset($responseData['withdraw']) && ($responseData['withdraw']['status'] ?? null) == 'PAID') {
                         $withdrawal = AffiliateWithdraw::find($array['withdrawal_id']);
-                        if(!empty($withdrawal)) {
-                            if($withdrawal->update(['status' => 1, 'in_queue' => 2, 'payment_id' => $responseData['withdraw']['reference']])) {
+                        if (!empty($withdrawal)) {
+                            if ($withdrawal->update([
+                                'status' => 1,
+                                'in_queue' => 2,
+                                'payment_id' => $responseData['withdraw']['reference'] ?? null
+                            ])) {
                                 return true;
                             }
                             return false;
                         }
                     }
                     return false;
-                }else{
-                    dd($response->body());
                 }
+
+                // Em produção, não pode dar dd(); apenas retorna false
+                return false;
             }
             return false;
         }
+
+        return false;
     }
 }
