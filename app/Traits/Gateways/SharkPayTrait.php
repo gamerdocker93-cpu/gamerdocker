@@ -79,6 +79,7 @@ trait SharkPayTrait
     public static function requestQrcodeSharkPay($request)
     {
         $setting = Helper::getSetting();
+
         $rules = [
             'amount' => ['required', 'numeric', 'min:' . $setting->min_deposit, 'max:' . $setting->max_deposit],
             'cpf'    => ['required', 'max:255'],
@@ -89,140 +90,158 @@ trait SharkPayTrait
             return response()->json($validator->errors(), 400);
         }
 
-        if ($token = self::generateCredentialsSharkPay()) {
-            $userId = auth('api')->user()->id;
-
-            /// verifica se tem bonus, se sim, já credita
-            $orderData = [
-                'user_id' => $userId,
-                'payment_method' => 'pix',
-                'price' => $request->amount,
-                'currency' => $setting->currency_code,
-                'accept_bonus' => $request->accept_bonus,
-                'status' => 0
-            ];
-
-            if (!empty($request->bonus)) {
-                $valorFormatado = str_replace(['R$', ' '], '', $request->bonus);
-                $orderData['bonus_amount'] = \Helper::amountPrepare($valorFormatado);
-            }
-
-            $order = Transaction::create($orderData);
-
-            if ($order) {
-                /**
-                 * IMPORTANTE:
-                 * Muitos bancos recusam Pix quando o TXID vem inválido/placeholder (ex: "***").
-                 * Então forçamos um TXID/ReferenceLabel consistente usando o ID do pedido.
-                 * Assim o payload (copia e cola) não deve mais terminar com 0503***.
-                 */
-                $txid = self::buildTxid($order->id);
-                $params = [
-                    'amount'     => Helper::amountPrepare($request->amount),
-                    'email'      => auth('api')->user()->email,
-                    'quantity'   => 1,
-                    'discount'   => 0,
-                    'invoice_no' => $order->id,
-                    'due_date'   => Carbon::now()->addMinutes(30)->toIso8601String(),
-                    'tax'        => 0,
-                    'notes'      => 'Recarga de R$' . $request->amount,
-                    'item_name'  => 'Recarga',
-                    'document'   => Helper::soNumero($request->cpf),
-                    'client'     => auth('api')->user()->name,
-
-                    // Compatibilidade: algumas APIs usam txid, outras referenceLabel
-                    'txid' => $txid,
-                    'referenceLabel' => $txid,
-                ];
-
-                $response = Http::withHeaders([
-                    'Authorization' => 'Bearer ' . $token,
-                    'Content-Type' => 'application/json',
-                    'Accept' => 'application/json',
-                ])->post(self::$uriSharkPay . 'pix/create', $params);
-
-                if ($response->successful()) {
-                    $pix = $response->json();
-                    $copy = $pix['invoice']['copy'] ?? '';
-                    // Se vier placeholder (0503***), o banco recusa o Pix.
-                    if (is_string($copy) && preg_match('/0503\*{3}/', $copy)) {
-                        return [
-                            'status' => false,
-                            'message' => 'SharkPay retornou um Pix inválido (0503***). Isso geralmente acontece quando a conta/credenciais Pix na SharkPay não estão configuradas para produção. Preencha as chaves no painel (Gateway) e confirme com a SharkPay que sua conta está habilitada para gerar cobranças reais.',
-                        ];
-                    }
-                    // Resposta da SharkPay pode variar conforme versão/ambiente.
-                    // O front precisa receber o "copia e cola" (payload EMV) em `qrcode` para gerar o QRCode.
-                    $invoice = $pix['invoice'] ?? ($pix['success']['invoice'] ?? ($pix['data']['invoice'] ?? null));
-                    if (!$invoice && is_array($pix)) {
-                        $invoice = $pix;
-                    }
-
-                    $txidResponse = $invoice['txid'] ?? ($invoice['id'] ?? ($invoice['transaction_id'] ?? ($invoice['transactionId'] ?? null)));
-                    $reference = $invoice['reference'] ?? ($invoice['referenceLabel'] ?? ($invoice['invoice_no'] ?? ($invoice['invoiceNo'] ?? null)));
-
-                    $copy = $invoice['copy']
-                        ?? ($invoice['payload']
-                        ?? ($invoice['brCode']
-                        ?? ($invoice['brcode']
-                        ?? ($invoice['emv']
-                        ?? ($invoice['pix']
-                        ?? ($invoice['copiaecola']
-                        ?? ($invoice['copia_e_cola']
-                        ?? ($invoice['copyAndPaste']
-                        ?? ($invoice['copy_and_paste']
-                        ?? ($invoice['qrcode']
-                        ?? ($invoice['qr'] ?? null))))))))))));
-
-                    if (empty($copy) && is_array($pix)) {
-                        $copy = $pix['copy'] ?? ($pix['payload'] ?? ($pix['brCode'] ?? ($pix['qrcode'] ?? null)));
-                    }
-
-                    // Não depende do txid para mostrar QRCode no front; se não vier, usamos o id do pedido.
-                    $txid = $txidResponse ?? (string) $order->id;
-                    $reference = $reference ?? (string) $order->id;
-
-                    if (empty($copy)) {
-                        // Sem payload não tem como gerar QRCode no front.
-                        return [
-                            'status' => false,
-                            'message' => 'SharkPay não retornou o código PIX (copia e cola). Verifique as credenciais/ambiente da conta.',
-                        ];
-                    }
-
-
-                    $checkHash = Helper::GenerateHash('hash:' . $txid, env('DP_PRIVATE_KEY'));
-                    $order->update([
-                        'payment_id' => $txid,
-                        'reference' => $reference,
-                        'hash' => $checkHash
-                    ]);
-
-                    self::SharkPayGenerateDeposit($txid, Helper::amountPrepare($request->amount)); /// gerando deposito
-
-                    return [
-                        'status' => true,
-                        'idTransaction' => $order->id,
-                        'qrcode' => $copy,
-                        'payload' => $copy,
-                        'type' => 'pix'
-                    ];
-                }
-
-                return [
-                    'status' => false,
-                ];
-            }
-
+        // Se não conseguir autenticar, devolve erro claro (evita "Server Error" no front).
+        $token = self::generateCredentialsSharkPay();
+        if (!$token) {
             return [
                 'status' => false,
+                'message' => 'SharkPay não autenticou. Verifique se as chaves (shark_public_key / shark_private_key) estão preenchidas na tabela gateways e se a conta está habilitada.',
             ];
         }
 
+        $userId = auth('api')->user()->id;
+
+        // Cria transação/pedido
+        $orderData = [
+            'user_id'        => $userId,
+            'payment_method' => 'pix',
+            'price'          => $request->amount,
+            'currency'       => $setting->currency_code,
+            'accept_bonus'   => $request->accept_bonus,
+            'status'         => 0,
+        ];
+
+        if (!empty($request->bonus)) {
+            $valorFormatado = str_replace(['R$', ' '], '', $request->bonus);
+            $orderData['bonus_amount'] = \Helper::amountPrepare($valorFormatado);
+        }
+
+        $order = Transaction::create($orderData);
+        if (!$order) {
+            return ['status' => false, 'message' => 'Não foi possível criar a transação.'];
+        }
+
+        // Usa o builder do próprio projeto (já existe no trait)
+        $txid = self::buildTxid((int) $order->id, (int) $userId);
+
+        $params = [
+            'amount'     => Helper::amountPrepare($request->amount),
+            'email'      => auth('api')->user()->email,
+            'quantity'   => 1,
+            'discount'   => 0,
+            'invoice_no' => $order->id,
+            'due_date'   => Carbon::now(),
+            'tax'        => 0,
+            'notes'      => 'Recarga de R$' . $request->amount,
+            'item_name'  => 'Recarga',
+            'document'   => Helper::soNumero($request->cpf),
+            'client'     => auth('api')->user()->name,
+
+            // Compatibilidade: algumas versões usam txid/referenceLabel
+            'txid'           => $txid,
+            'referenceLabel' => $txid,
+        ];
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $token,
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+        ])->post(self::$uriSharkPay . 'pix/create', $params);
+
+        if (!$response->successful()) {
+            return [
+                'status' => false,
+                'message' => 'Falha ao solicitar PIX na SharkPay.',
+                'details' => $response->json() ?? $response->body(),
+            ];
+        }
+
+        $pix = $response->json();
+
+        // Tenta localizar o bloco "invoice" em diferentes formatos de resposta
+        $invoice = $pix['invoice'] ?? ($pix['success']['invoice'] ?? ($pix['data']['invoice'] ?? null));
+        if (!$invoice && is_array($pix)) {
+            $invoice = $pix;
+        }
+
+        $txidResponse = $invoice['txid'] ?? ($invoice['id'] ?? ($invoice['transaction_id'] ?? ($invoice['transactionId'] ?? null)));
+        $reference    = $invoice['reference'] ?? ($invoice['referenceLabel'] ?? ($invoice['invoice_no'] ?? ($invoice['invoiceNo'] ?? null)));
+
+        // Extrai o "copia e cola" (payload EMV) em diferentes chaves possíveis
+        $copy = self::extractPixCopy($invoice, $pix);
+
+        // Se vier placeholder (0503***), o banco recusa o Pix.
+        if (is_string($copy) && preg_match('/0503\*{3}/', $copy)) {
+            return [
+                'status' => false,
+                'message' => 'SharkPay retornou um Pix inválido (0503***). Isso normalmente acontece quando a conta/credenciais ainda não estão habilitadas para gerar cobranças reais (compliance/produção).',
+            ];
+        }
+
+        if (empty($copy)) {
+            return [
+                'status' => false,
+                'message' => 'SharkPay não retornou o código PIX (copia e cola). Verifique as credenciais/ambiente da conta.',
+            ];
+        }
+
+        // Salva o que tiver (sem depender do formato da API)
+        $txidToSave = $txidResponse ?? $txid;
+        $referenceToSave = $reference ?? (string) $order->id;
+
+        $checkHash = Helper::GenerateHash('hash:' . $txidToSave, env('DP_PRIVATE_KEY'));
+        $order->update([
+            'payment_id' => $txidToSave,
+            'reference'  => $referenceToSave,
+            'hash'       => $checkHash,
+        ]);
+
+        self::SharkPayGenerateDeposit($txidToSave, Helper::amountPrepare($request->amount));
+
         return [
-            'status' => false,
+            'status' => true,
+            'idTransaction' => $order->id,
+            // O front usa isso para renderizar o QRCode e também copiar/colar.
+            'qrcode' => $copy,
+            'type' => 'pix',
         ];
     }
+
+    /**
+     * Extrai o "copia e cola" do PIX (payload EMV) de diferentes formatos de resposta.
+     */
+    private static function extractPixCopy($invoice, $pix): ?string
+    {
+        $candidates = [
+            'copy',
+            'payload',
+            'brCode',
+            'brcode',
+            'emv',
+            'pix',
+            'copiaecola',
+            'copia_e_cola',
+            'copyAndPaste',
+            'copy_and_paste',
+            'qrcode',
+            'qr',
+        ];
+
+        foreach ($candidates as $key) {
+            if (is_array($invoice) && !empty($invoice[$key])) {
+                return (string) $invoice[$key];
+            }
+        }
+
+        foreach ($candidates as $key) {
+            if (is_array($pix) && !empty($pix[$key])) {
+                return (string) $pix[$key];
+            }
+        }
+
+        return null;
+    }
+
 
     /**
      * @param $idTransaction
