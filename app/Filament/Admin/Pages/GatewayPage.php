@@ -37,10 +37,10 @@ class GatewayPage extends Page
     public function mount(): void
     {
         $gateway = Gateway::first();
-        if(!empty($gateway)) {
+        if (!empty($gateway)) {
             $this->setting = $gateway;
             $this->form->fill($this->setting->toArray());
-        }else{
+        } else {
             $this->form->fill();
         }
     }
@@ -67,6 +67,7 @@ class GatewayPage extends Page
                             ->maxLength(191)
                             ->columnSpanFull(),
                     ]),
+
                 Section::make('DigitoPay')
                     ->description('Ajustes de credenciais para a DigitoPay')
                     ->schema([
@@ -85,11 +86,31 @@ class GatewayPage extends Page
                             ->placeholder('Digite o client secret')
                             ->maxLength(191)
                             ->columnSpanFull(),
-                    ])
+                    ]),
+
+                // ✅ STRIPE (NOVO)
+                Section::make('Stripe')
+                    ->description('Ajustes de credenciais para a Stripe')
+                    ->schema([
+                        TextInput::make('stripe_public_key')
+                            ->label('Public Key')
+                            ->placeholder('pk_live_xxx (ou pk_test_xxx)')
+                            ->maxLength(191)
+                            ->columnSpanFull(),
+                        TextInput::make('stripe_secret_key')
+                            ->label('Secret Key')
+                            ->placeholder('sk_live_xxx (ou sk_test_xxx)')
+                            ->maxLength(191)
+                            ->columnSpanFull(),
+                        TextInput::make('stripe_webhook_secret')
+                            ->label('Webhook Secret')
+                            ->placeholder('whsec_xxx')
+                            ->maxLength(191)
+                            ->columnSpanFull(),
+                    ]),
             ])
             ->statePath('data');
     }
-
 
     /**
      * @return void
@@ -97,7 +118,7 @@ class GatewayPage extends Page
     public function submit(): void
     {
         try {
-            if(env('APP_DEMO')) {
+            if (env('APP_DEMO')) {
                 Notification::make()
                     ->title('Atenção')
                     ->body('Você não pode realizar está alteração na versão demo')
@@ -107,16 +128,16 @@ class GatewayPage extends Page
             }
 
             $setting = Gateway::first();
-            if(!empty($setting)) {
-                if($setting->update($this->data)) {
+            if (!empty($setting)) {
+                if ($setting->update($this->data)) {
                     Notification::make()
                         ->title('Chaves Alteradas')
                         ->body('Suas chaves foram alteradas com sucesso!')
                         ->success()
                         ->send();
                 }
-            }else{
-                if(Gateway::create($this->data)) {
+            } else {
+                if (Gateway::create($this->data)) {
                     Notification::make()
                         ->title('Chaves Criadas')
                         ->body('Suas chaves foram criadas com sucesso!')
@@ -124,8 +145,6 @@ class GatewayPage extends Page
                         ->send();
                 }
             }
-
-
         } catch (Halt $exception) {
             Notification::make()
                 ->title('Erro ao alterar dados!')
