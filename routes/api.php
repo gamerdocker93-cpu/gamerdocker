@@ -20,7 +20,6 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-
 /*
  * Auth Route with JWT
  */
@@ -30,8 +29,7 @@ Route::group(['prefix' => 'auth', 'as' => 'auth.'], function () {
 
 Route::group(['middleware' => ['auth.jwt']], function () {
     Route::prefix('profile')
-        ->group(function ()
-        {
+        ->group(function () {
             include_once(__DIR__ . '/groups/api/profile/profile.php');
             include_once(__DIR__ . '/groups/api/profile/affiliates.php');
             include_once(__DIR__ . '/groups/api/profile/wallet.php');
@@ -42,8 +40,7 @@ Route::group(['middleware' => ['auth.jwt']], function () {
         });
 
     Route::prefix('wallet')
-        ->group(function ()
-        {
+        ->group(function () {
             include_once(__DIR__ . '/groups/api/wallet/deposit.php');
             include_once(__DIR__ . '/groups/api/wallet/withdraw.php');
         });
@@ -52,40 +49,47 @@ Route::group(['middleware' => ['auth.jwt']], function () {
     include_once(__DIR__ . '/groups/api/missions/missionuser.php');
 });
 
-
 Route::prefix('categories')
-    ->group(function ()
-    {
+    ->group(function () {
         include_once(__DIR__ . '/groups/api/categories/index.php');
     });
 
 include_once(__DIR__ . '/groups/api/games/index.php');
+
+/**
+ * Gateways (API)
+ */
 include_once(__DIR__ . '/groups/api/gateways/digitopay.php');
 include_once(__DIR__ . '/groups/api/gateways/sharkpay.php');
+include_once(__DIR__ . '/groups/api/gateways/stripe.php'); // ✅ STRIPE (ETAPA 4)
 
+/**
+ * Search
+ */
 Route::prefix('search')
-    ->group(function ()
-    {
+    ->group(function () {
         include_once(__DIR__ . '/groups/api/search/search.php');
     });
 
+/**
+ * Profile language
+ */
 Route::prefix('profile')
-    ->group(function ()
-    {
+    ->group(function () {
         Route::post('/getLanguage', [ProfileController::class, 'getLanguage']);
         Route::put('/updateLanguage', [ProfileController::class, 'updateLanguage']);
     });
 
 Route::prefix('providers')
-    ->group(function ()
-    {
-
+    ->group(function () {
+        //
     });
 
-
+/**
+ * Settings
+ */
 Route::prefix('settings')
-    ->group(function ()
-    {
+    ->group(function () {
         // ✅ O /settings/data já está definido em:
         // routes/groups/api/settings/settings.php (SettingController@index)
         include_once(__DIR__ . '/groups/api/settings/settings.php');
@@ -96,8 +100,7 @@ Route::prefix('settings')
 
 // LANDING SPIN
 Route::prefix('spin')
-    ->group(function ()
-    {
+    ->group(function () {
         include_once(__DIR__ . '/groups/api/spin/index.php');
     })
     ->name('landing.spin.');
