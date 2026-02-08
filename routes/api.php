@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Profile\ProfileController;
+use App\Http\Controllers\Api\SettingsDataController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
@@ -86,6 +87,9 @@ Route::prefix('providers')
 Route::prefix('settings')
     ->group(function ()
     {
+        // endpoint que o front chama: HttpApi.get('/settings/data')
+        Route::get('/data', SettingsDataController::class);
+
         include_once(__DIR__ . '/groups/api/settings/settings.php');
         include_once(__DIR__ . '/groups/api/settings/banners.php');
         include_once(__DIR__ . '/groups/api/settings/currency.php');
