@@ -9,6 +9,3 @@ Route::prefix('webhooks')
     {
         Route::post('stripe', [StripeController::class, 'webhooks']);
     });
-
-
-
