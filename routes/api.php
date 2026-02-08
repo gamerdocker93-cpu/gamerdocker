@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Api\Profile\ProfileController;
-use App\Http\Controllers\Api\SettingsDataController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
@@ -49,15 +48,15 @@ Route::group(['middleware' => ['auth.jwt']], function () {
             include_once(__DIR__ . '/groups/api/wallet/withdraw.php');
         });
 
-    include_once(__DIR__ . '/groups/api/missions/mission.php');;
-    include_once(__DIR__ . '/groups/api/missions/missionuser.php');;
+    include_once(__DIR__ . '/groups/api/missions/mission.php');
+    include_once(__DIR__ . '/groups/api/missions/missionuser.php');
 });
 
 
 Route::prefix('categories')
     ->group(function ()
     {
-        include_once(__DIR__ . '/groups/api/categories/index.php');;
+        include_once(__DIR__ . '/groups/api/categories/index.php');
     });
 
 include_once(__DIR__ . '/groups/api/games/index.php');
@@ -87,9 +86,8 @@ Route::prefix('providers')
 Route::prefix('settings')
     ->group(function ()
     {
-        // endpoint que o front chama: HttpApi.get('/settings/data')
-        Route::get('/data', SettingsDataController::class);
-
+        // ✅ O /settings/data já está definido em:
+        // routes/groups/api/settings/settings.php (SettingController@index)
         include_once(__DIR__ . '/groups/api/settings/settings.php');
         include_once(__DIR__ . '/groups/api/settings/banners.php');
         include_once(__DIR__ . '/groups/api/settings/currency.php');
