@@ -4,7 +4,6 @@ namespace App\Services\Gateways;
 
 use App\Helpers\Core as Helper;
 use App\Models\Gateway;
-use App\Models\Setting;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\Log;
 
@@ -68,28 +67,27 @@ class StripeService
                 return ['status' => false, 'message' => "Valor máximo é {$max}."];
             }
 
-            // Gateway config (DB)
+            // Gateway config (DB) — mantém pra futuro (se quiser puxar keys do DB)
             $gateway = Gateway::first();
             $currency = $setting->currency_code ?? 'BRL';
 
             // URL base (Railway)
             $appUrl = rtrim(config('app.url') ?: env('APP_URL', ''), '/');
             if (empty($appUrl)) {
-                // fallback hard: tenta montar baseado no host atual
                 $appUrl = rtrim(request()->getSchemeAndHttpHost(), '/');
             }
 
-            // Rotas do front (hash mode) — usa as páginas já existentes no teu projeto
+            // Rotas do front (hash mode)
             $successUrl = $appUrl . '/#/stripe/success?session_id={CHECKOUT_SESSION_ID}';
             $cancelUrl  = $appUrl . '/#/stripe/cancel';
 
             // Cria uma Transaction "pendente" pra rastrear no webhook
             $transaction = Transaction::create([
-                'user_id'         => $user->id,
-                'payment_method'  => 'stripe',
-                'price'           => $amount,
-                'currency'        => $currency,
-                'status'          => 0,
+                'user_id'        => $user->id,
+                'payment_method' => 'stripe',
+                'price'          => $amount,
+                'currency'       => $currency,
+                'status'         => 0,
             ]);
 
             // Configura Stripe
