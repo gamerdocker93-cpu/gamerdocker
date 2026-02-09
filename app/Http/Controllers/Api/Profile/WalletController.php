@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api\Profile;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessAutoWithdrawal;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\Withdrawal;
 use App\Notifications\NewWithdrawalNotification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class WalletController extends Controller
@@ -77,7 +79,6 @@ class WalletController extends Controller
                     default:
                         $rules['pix_key'] = 'required';
                         break;
-
                 }
             }
 
@@ -99,30 +100,41 @@ class WalletController extends Controller
                 return response()->json(['error' => 'Você tem que solicitar um valor'], 400);
             }
 
-
             /// verificar o limite de saque
             if(!empty($setting->withdrawal_limit) && !empty($setting->withdrawal_period)) {
                 switch ($setting->withdrawal_period) {
                     case 'daily':
-                        $registrosDiarios = Withdrawal::where('user_id', auth('api')->user()->id)->whereDate('created_at', now()->toDateString())->count();
+                        $registrosDiarios = Withdrawal::where('user_id', auth('api')->user()->id)
+                            ->whereDate('created_at', now()->toDateString())
+                            ->count();
                         if($registrosDiarios >= $setting->withdrawal_limit) {
                             return response()->json(['error' => trans('You have already reached the daily withdrawal limit')], 400);
                         }
                         break;
+
                     case 'weekly':
-                        $registrosDiarios = Withdrawal::where('user_id', auth('api')->user()->id)->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count();
+                        $registrosDiarios = Withdrawal::where('user_id', auth('api')->user()->id)
+                            ->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])
+                            ->count();
                         if($registrosDiarios >= $setting->withdrawal_limit) {
                             return response()->json(['error' => trans('You have already reached the weekly withdrawal limit')], 400);
                         }
                         break;
+
                     case 'monthly':
-                        $registrosDiarios = Withdrawal::where('user_id', auth('api')->user()->id)->whereYear('created_at', now()->year)->whereMonth('data', now()->month)->count();
+                        $registrosDiarios = Withdrawal::where('user_id', auth('api')->user()->id)
+                            ->whereYear('created_at', now()->year)
+                            ->whereMonth('data', now()->month)
+                            ->count();
                         if($registrosDiarios >= $setting->withdrawal_limit) {
                             return response()->json(['error' => trans('You have already reached the monthly withdrawal limit')], 400);
                         }
                         break;
+
                     case 'yearly':
-                        $registrosDiarios = Withdrawal::where('user_id', auth('api')->user()->id)->whereYear('created_at', now()->year)->count();
+                        $registrosDiarios = Withdrawal::where('user_id', auth('api')->user()->id)
+                            ->whereYear('created_at', now()->year)
+                            ->count();
                         if($registrosDiarios >= $setting->withdrawal_limit) {
                             return response()->json(['error' => trans('You have already reached the yearly withdrawal limit')], 400);
                         }
@@ -140,6 +152,7 @@ class WalletController extends Controller
                 }
 
                 $data = [];
+
                 if($request->type === 'pix') {
                     $data = [
                         'user_id'   => auth('api')->user()->id,
@@ -176,6 +189,18 @@ class WalletController extends Controller
                         $admin->notify(new NewWithdrawalNotification(auth()->user()->name, $request->amount));
                     }
 
+                    // ✅ AUTO SAQUE: dispara o Job se estiver ativado
+                    try {
+                        $settingFresh = Setting::first();
+                        if (!empty($settingFresh) && !empty($settingFresh->auto_withdraw_enabled)) {
+                            ProcessAutoWithdrawal::dispatch();
+                        }
+                    } catch (\Throwable $e) {
+                        Log::error('AutoWithdraw dispatch error', [
+                            'message' => $e->getMessage(),
+                        ]);
+                    }
+
                     return response()->json([
                         'status' => true,
                         'message' => 'Saque realizado com sucesso',
@@ -188,6 +213,4 @@ class WalletController extends Controller
 
         return response()->json(['error' => 'Erro ao realizar o saqu'], 400);
     }
-
-
 }
