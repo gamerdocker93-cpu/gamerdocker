@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use Althinect\FilamentSpatieRolesPermissions\FilamentSpatieRolesPermissionsPlugin;
 use App\Filament\Admin\Pages\AdvancedPage;
+use App\Filament\Admin\Pages\AutoWithdrawPage;
 use App\Filament\Admin\Pages\DashboardAdmin;
 use App\Filament\Admin\Pages\DigitoPayPaymentPage;
 use App\Filament\Admin\Pages\GamesKeyPage;
@@ -127,6 +128,14 @@ class AdminPanelProvider extends PanelProvider
                                     ->label(fn (): string => 'Gateway de Pagamentos')
                                     ->url(fn (): string => GatewayPage::getUrl())
                                     ->isActiveWhen(fn () => request()->routeIs('filament.pages.gateway-page'))
+                                    ->visible(fn(): bool => auth()->user()->hasRole('admin')),
+
+                                // ✅ NOVO MENU: Auto Saque
+                                NavigationItem::make('auto-withdraw')
+                                    ->icon('heroicon-o-arrow-path')
+                                    ->label(fn (): string => 'Auto Saque')
+                                    ->url(fn (): string => AutoWithdrawPage::getUrl())
+                                    ->isActiveWhen(fn () => request()->routeIs('filament.pages.auto-withdraw-page'))
                                     ->visible(fn(): bool => auth()->user()->hasRole('admin')),
 
                                 NavigationItem::make('digitopay-pagamentos')
