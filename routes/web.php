@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Jobs\TestQueueJob;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Healthcheck simples (opcional)
@@ -13,29 +13,49 @@ Route::get('/health', function () {
 /**
  * TESTE DA FILA (Database Queue)
  * Acesse: /test-queue
+ *
+ * OBS: Está “safe” para não derrubar deploy caso o Job não exista.
  */
 Route::get('/test-queue', function () {
-    TestQueueJob::dispatch();
+    try {
+        $jobClass = \App\Jobs\TestQueueJob::class;
 
-    return response()->json([
-        'ok' => true,
-        'message' => 'Job enviado para a fila com sucesso!',
-        'time' => now()->toDateTimeString(),
-    ]);
+        if (!class_exists($jobClass)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Classe TestQueueJob não encontrada em app/Jobs/TestQueueJob.php',
+            ], 500);
+        }
+
+        dispatch(new $jobClass());
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Job enviado para a fila com sucesso!',
+            'time' => now()->toDateTimeString(),
+        ]);
+    } catch (\Throwable $e) {
+        Log::error('Erro ao despachar TestQueueJob', [
+            'message' => $e->getMessage(),
+        ]);
+
+        return response()->json([
+            'ok' => false,
+            'message' => 'Falha ao enviar job para fila',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
 });
 
 /**
  * Carrega as rotas do sistema (se existirem)
- * IMPORTANTE: isso mantém rotas do painel/admin e outras rotas web.
  */
 if (file_exists(__DIR__ . '/groups/layouts/app.php')) {
     include_once __DIR__ . '/groups/layouts/app.php';
 }
 
 /**
- * IMPORTANTE:
- * Como o seu Vue está em HASH MODE (#/...), não precisamos de SPA fallback aqui.
- * O Laravel só precisa servir a página principal ("/") e as rotas web reais.
+ * Vue está em HASH MODE (#/...), então não precisa SPA fallback.
  */
 Route::get('/', function () {
     return view('layouts.app');
