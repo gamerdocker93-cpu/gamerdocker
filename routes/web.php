@@ -1,12 +1,27 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Jobs\TestQueueJob;
 
 /**
  * Healthcheck simples (opcional)
  */
 Route::get('/health', function () {
     return response()->json(['ok' => true]);
+});
+
+/**
+ * TESTE DA FILA (Database Queue)
+ * Acesse: /test-queue
+ */
+Route::get('/test-queue', function () {
+    TestQueueJob::dispatch();
+
+    return response()->json([
+        'ok' => true,
+        'message' => 'Job enviado para a fila com sucesso!',
+        'time' => now()->toDateTimeString(),
+    ]);
 });
 
 /**
