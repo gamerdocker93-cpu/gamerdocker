@@ -2,6 +2,7 @@
 
 namespace App\Console;
 
+use App\Jobs\ProcessAutoWithdrawal;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -22,7 +23,13 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // sem agendamentos por enquanto
+        // ✅ Auto saque: dispara o job a cada 1 minuto
+        // O próprio job já verifica as flags no settings e sai se estiver desligado.
+        $schedule->job(new ProcessAutoWithdrawal)
+            ->everyMinute()
+            ->name('process-auto-withdrawal')
+            ->withoutOverlapping(5) // evita duplicar se travar; janela de 5 min
+            ->runInBackground();
     }
 
     /**
@@ -30,7 +37,7 @@ class Kernel extends ConsoleKernel
      */
     protected function commands(): void
     {
-        $this->load(__DIR__.'/Commands');
+        $this->load(__DIR__ . '/Commands');
 
         require base_path('routes/console.php');
     }
