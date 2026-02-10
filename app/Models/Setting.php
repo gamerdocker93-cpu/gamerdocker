@@ -67,7 +67,6 @@ class Setting extends Model
 
         'disable_spin',
 
-
         /// sub afiliado
         'perc_sub_lv1',
         'perc_sub_lv2',
@@ -78,7 +77,18 @@ class Setting extends Model
         'rollover_deposit',
         'disable_rollover',
         'rollover_protection',
+
+        // ===============================
+        // AUTO WITHDRAW (NOVO)
+        // ===============================
+        'auto_withdraw_enabled',
+        'auto_withdraw_players',
+        'auto_withdraw_affiliates',
+        'auto_withdraw_affiliate_enabled',
+        'auto_withdraw_gateway',
     ];
 
-    protected $hidden = array('updated_at');
+    protected $hidden = [
+        'updated_at'
+    ];
 }
