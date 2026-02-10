@@ -2,125 +2,83 @@
 
 namespace App\Jobs;
 
-use App\Models\AffiliateWithdraw;
 use App\Models\Gateway;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\Withdrawal;
+use App\Models\AffiliateWithdraw;
 use Illuminate\Bus\Queueable;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 
 class ProcessAutoWithdrawal implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    /**
-     * Evita job travar demais
-     */
     public int $timeout = 120;
 
-    /**
-     * Quantidade máxima por execução (fallback)
-     */
     protected int $defaultBatchSize = 20;
 
     public function handle(): void
     {
-        // trava simples pra não rodar 2 jobs ao mesmo tempo (mesmo em retry)
-        $lock = Cache::lock('auto_withdraw:lock', 120);
-        if (! $lock->get()) {
+        $setting = Setting::first();
+        if (!$setting) {
+            Log::warning('AutoWithdraw: Setting não encontrado.');
             return;
         }
 
-        try {
-            $setting = Setting::first();
-            if (! $setting) {
-                Log::warning('AutoWithdraw: Setting não encontrado.');
-                return;
-            }
+        // MASTER + TOGGLES
+        $masterEnabled = (bool) ($setting->auto_withdraw_enabled ?? false);
 
-            // Colunas reais no seu settings:
-            // - auto_withdraw_enabled (global)
-            // - auto_withdraw_players (players)
-            // - auto_withdraw_affiliates (afiliados)
-            $autoEnabled = (int)($setting->auto_withdraw_enabled ?? 0) === 1;
+        // players (usuarios)
+        $autoPlayersEnabled = (bool) ($setting->auto_withdraw_players ?? false);
 
-            // Se você ainda não estiver usando os toggles separados, pode deixar fallback:
-            $autoPlayers = (int)($setting->auto_withdraw_players ?? 0) === 1;
-            $autoAff     = (int)($setting->auto_withdraw_affiliates ?? 0) === 1;
+        // afiliados (vamos deixar pronto, mas você vai ligar depois)
+        $autoAffEnabled = (bool) ($setting->auto_withdraw_affiliates ?? false);
+        $autoAffMaster  = (bool) ($setting->auto_withdraw_affiliate_enabled ?? false); // ✅ nome certo da coluna
 
-            // fallback caso exista alguma coluna antiga que você tenha criado em algum momento
-            if (! $autoPlayers && isset($setting->auto_withdraw_player_enabled)) {
-                $autoPlayers = (int)($setting->auto_withdraw_player_enabled ?? 0) === 1;
-            }
-            if (! $autoAff && isset($setting->auto_withdraw_affiliate_enabled)) {
-                $autoAff = (int)($setting->auto_withdraw_affiliate_enabled ?? 0) === 1;
-            }
-
-            // regra: se global estiver OFF, não roda nada
-            if (! $autoEnabled) {
-                return;
-            }
-
-            // Se global ON mas os dois toggles específicos estão OFF, não faz nada
-            if (! $autoPlayers && ! $autoAff) {
-                return;
-            }
-
-            $batchSize = (int)($setting->auto_withdraw_batch_size ?? $this->defaultBatchSize);
-            if ($batchSize <= 0) {
-                $batchSize = $this->defaultBatchSize;
-            }
-
-            // preferência do gateway para payout: 'sharkpay' | 'digitopay'
-            $preferred = strtolower((string)($setting->auto_withdraw_gateway ?? 'sharkpay'));
-
-            $gateway = Gateway::first();
-            if (! $gateway) {
-                Log::warning('AutoWithdraw: Gateway (tabela gateways) não encontrado.');
-                return;
-            }
-
-            // Checagens simples: só tenta pagar se o gateway estiver habilitado no settings
-            // (isso evita tentar payout com gateway “desligado” no admin)
-            if ($preferred === 'sharkpay' && (int)($setting->sharkpay_is_enable ?? 0) !== 1) {
-                Log::warning('AutoWithdraw: sharkpay selecionado, mas sharkpay_is_enable está OFF.');
-                return;
-            }
-            if ($preferred === 'digitopay' && (int)($setting->digitopay_is_enable ?? 0) !== 1) {
-                Log::warning('AutoWithdraw: digitopay selecionado, mas digitopay_is_enable está OFF.');
-                return;
-            }
-
-            $withdrawalsHasInQueue = Schema::hasColumn('withdrawals', 'in_queue');
-            $affiliateHasInQueue   = Schema::hasColumn('affiliate_withdraws', 'in_queue');
-
-            if ($autoPlayers) {
-                $this->processUserWithdrawals($gateway, $preferred, $batchSize, $withdrawalsHasInQueue);
-            }
-
-            if ($autoAff) {
-                $this->processAffiliateWithdrawals($gateway, $preferred, $batchSize, $affiliateHasInQueue);
-            }
-        } finally {
-            optional($lock)->release();
+        if (!$masterEnabled) {
+            // master OFF = não roda nada
+            return;
         }
+
+        // Agora: vamos rodar SOMENTE PLAYERS (uma de cada vez, como você pediu)
+        if (!$autoPlayersEnabled) {
+            return;
+        }
+
+        $batchSize = (int) ($setting->auto_withdraw_batch_size ?? $this->defaultBatchSize);
+        if ($batchSize <= 0) $batchSize = $this->defaultBatchSize;
+
+        $preferred = strtolower((string) ($setting->auto_withdraw_gateway ?? 'sharkpay'));
+
+        $gateway = Gateway::first();
+        if (!$gateway) {
+            Log::warning('AutoWithdraw: Gateway (tabela gateways) não encontrado.');
+            return;
+        }
+
+        // ✅ Apenas SAQUES DE PLAYERS
+        $this->processUserWithdrawals($gateway, $preferred, $batchSize);
+
+        // (Afiliados fica pra próxima etapa)
+        // if ($autoAffMaster && $autoAffEnabled) {
+        //     $this->processAffiliateWithdrawals($gateway, $preferred, $batchSize);
+        // }
     }
 
-    protected function processUserWithdrawals(Gateway $gateway, string $preferred, int $batchSize, bool $hasInQueue): void
+    protected function processUserWithdrawals(Gateway $gateway, string $preferred, int $batchSize): void
     {
         $query = Withdrawal::query()
             ->where('status', 0)
             ->orderBy('id', 'asc');
 
-        if ($hasInQueue) {
+        if (Schema::hasColumn('withdrawals', 'in_queue')) {
             $query->where(function ($q) {
                 $q->whereNull('in_queue')->orWhere('in_queue', 0);
             });
@@ -129,17 +87,17 @@ class ProcessAutoWithdrawal implements ShouldQueue
         $withdrawals = $query->limit($batchSize)->get();
 
         foreach ($withdrawals as $w) {
-            $this->markProcessing($w, $hasInQueue);
+            $this->markProcessing($w, 'withdrawals');
 
             try {
                 if ($w->type !== 'pix') {
-                    $this->markFailed($w, $hasInQueue, 'Tipo não suportado (somente pix).');
+                    $this->markFailed($w, 'withdrawals', 'Tipo não suportado (somente pix).');
                     continue;
                 }
 
                 $user = User::find($w->user_id);
-                if (! $user) {
-                    $this->markFailed($w, $hasInQueue, 'Usuário não encontrado.');
+                if (!$user) {
+                    $this->markFailed($w, 'withdrawals', 'Usuário não encontrado.');
                     continue;
                 }
 
@@ -148,44 +106,44 @@ class ProcessAutoWithdrawal implements ShouldQueue
                 if ($preferred === 'sharkpay') {
                     $ok = $this->payoutSharkPay(
                         $gateway,
-                        (float)$w->amount,
-                        (string)$w->pix_key,
-                        (string)$w->pix_type,
-                        (string)($user->cpf ?? ''),
-                        (string)($user->email ?? ''),
-                        (string)($user->name ?? 'Cliente'),
+                        (float) $w->amount,
+                        (string) $w->pix_key,
+                        (string) $w->pix_type,
+                        (string) ($user->cpf ?? ''),
+                        (string) ($user->email ?? ''),
+                        (string) ($user->name ?? 'Cliente'),
                         $w
                     );
                 } elseif ($preferred === 'digitopay') {
-                    $this->markFailed($w, $hasInQueue, 'Digitopay auto saque ainda não implementado.');
+                    $this->markFailed($w, 'withdrawals', 'Digitopay auto saque ainda não implementado.');
                     continue;
                 } else {
-                    $this->markFailed($w, $hasInQueue, 'Gateway inválido em auto_withdraw_gateway.');
+                    $this->markFailed($w, 'withdrawals', 'Gateway inválido em auto_withdraw_gateway.');
                     continue;
                 }
 
                 if ($ok) {
-                    $this->markPaid($w, $hasInQueue);
+                    $this->markPaid($w, 'withdrawals');
                 } else {
-                    $this->markFailed($w, $hasInQueue, 'Falha ao pagar no provedor.');
+                    $this->markFailed($w, 'withdrawals', 'Falha ao pagar no provedor.');
                 }
             } catch (\Throwable $e) {
                 Log::error('AutoWithdraw: erro em withdrawals', [
                     'withdrawal_id' => $w->id,
                     'message' => $e->getMessage(),
                 ]);
-                $this->markFailed($w, $hasInQueue, 'Exceção: ' . $e->getMessage());
+                $this->markFailed($w, 'withdrawals', 'Exceção: ' . $e->getMessage());
             }
         }
     }
 
-    protected function processAffiliateWithdrawals(Gateway $gateway, string $preferred, int $batchSize, bool $hasInQueue): void
+    protected function processAffiliateWithdrawals(Gateway $gateway, string $preferred, int $batchSize): void
     {
         $query = AffiliateWithdraw::query()
             ->where('status', 0)
             ->orderBy('id', 'asc');
 
-        if ($hasInQueue) {
+        if (Schema::hasColumn('affiliate_withdraws', 'in_queue')) {
             $query->where(function ($q) {
                 $q->whereNull('in_queue')->orWhere('in_queue', 0);
             });
@@ -194,17 +152,17 @@ class ProcessAutoWithdrawal implements ShouldQueue
         $withdrawals = $query->limit($batchSize)->get();
 
         foreach ($withdrawals as $w) {
-            $this->markProcessing($w, $hasInQueue);
+            $this->markProcessing($w, 'affiliate_withdraws');
 
             try {
                 if ($w->type !== 'pix') {
-                    $this->markFailed($w, $hasInQueue, 'Tipo não suportado (somente pix).');
+                    $this->markFailed($w, 'affiliate_withdraws', 'Tipo não suportado (somente pix).');
                     continue;
                 }
 
                 $user = User::find($w->user_id);
-                if (! $user) {
-                    $this->markFailed($w, $hasInQueue, 'Usuário não encontrado.');
+                if (!$user) {
+                    $this->markFailed($w, 'affiliate_withdraws', 'Usuário não encontrado.');
                     continue;
                 }
 
@@ -213,40 +171,37 @@ class ProcessAutoWithdrawal implements ShouldQueue
                 if ($preferred === 'sharkpay') {
                     $ok = $this->payoutSharkPay(
                         $gateway,
-                        (float)$w->amount,
-                        (string)$w->pix_key,
-                        (string)$w->pix_type,
-                        (string)($user->cpf ?? ''),
-                        (string)($user->email ?? ''),
-                        (string)($user->name ?? 'Afiliado'),
+                        (float) $w->amount,
+                        (string) $w->pix_key,
+                        (string) $w->pix_type,
+                        (string) ($user->cpf ?? ''),
+                        (string) ($user->email ?? ''),
+                        (string) ($user->name ?? 'Afiliado'),
                         $w
                     );
                 } elseif ($preferred === 'digitopay') {
-                    $this->markFailed($w, $hasInQueue, 'Digitopay auto saque ainda não implementado.');
+                    $this->markFailed($w, 'affiliate_withdraws', 'Digitopay auto saque ainda não implementado.');
                     continue;
                 } else {
-                    $this->markFailed($w, $hasInQueue, 'Gateway inválido em auto_withdraw_gateway.');
+                    $this->markFailed($w, 'affiliate_withdraws', 'Gateway inválido em auto_withdraw_gateway.');
                     continue;
                 }
 
                 if ($ok) {
-                    $this->markPaid($w, $hasInQueue);
+                    $this->markPaid($w, 'affiliate_withdraws');
                 } else {
-                    $this->markFailed($w, $hasInQueue, 'Falha ao pagar no provedor.');
+                    $this->markFailed($w, 'affiliate_withdraws', 'Falha ao pagar no provedor.');
                 }
             } catch (\Throwable $e) {
                 Log::error('AutoWithdraw: erro em affiliate_withdraws', [
-                    'affiliate_withdraw_id' => $w->id,
+                    'withdrawal_id' => $w->id,
                     'message' => $e->getMessage(),
                 ]);
-                $this->markFailed($w, $hasInQueue, 'Exceção: ' . $e->getMessage());
+                $this->markFailed($w, 'affiliate_withdraws', 'Exceção: ' . $e->getMessage());
             }
         }
     }
 
-    /**
-     * Payout via SharkPay (sem depender de auth('api'), funciona dentro do Job).
-     */
     protected function payoutSharkPay(
         Gateway $gateway,
         float $amount,
@@ -267,9 +222,8 @@ class ProcessAutoWithdrawal implements ShouldQueue
 
         $baseUri = 'https://sharkpay.com.br/api/';
 
-        // 1) token
         $auth = Http::withBasicAuth($public, $private)->post($baseUri . 'auth');
-        if (! $auth->successful()) {
+        if (!$auth->successful()) {
             Log::warning('AutoWithdraw SharkPay: falha /auth', [
                 'status' => $auth->status(),
                 'body' => $auth->body(),
@@ -277,17 +231,14 @@ class ProcessAutoWithdrawal implements ShouldQueue
             return false;
         }
 
-        $json  = $auth->json();
+        $json = $auth->json();
         $token = $json['success']['token'] ?? null;
-
         if (empty($token)) {
             Log::warning('AutoWithdraw SharkPay: token vazio.');
             return false;
         }
 
-        // 2) pixout
         $keytype = null;
-
         if (class_exists(\App\Helpers\Core::class) && method_exists(\App\Helpers\Core::class, 'checkPixKeyTypeSharkPay')) {
             $keytype = \App\Helpers\Core::checkPixKeyTypeSharkPay($pixKey);
         } else {
@@ -295,7 +246,7 @@ class ProcessAutoWithdrawal implements ShouldQueue
         }
 
         $payload = [
-            'amount'      => (float)$amount,
+            'amount'      => (float) $amount,
             'pixkey'      => $pixKey,
             'keytype'     => $keytype,
             'document'    => $document,
@@ -309,7 +260,7 @@ class ProcessAutoWithdrawal implements ShouldQueue
             'Accept'        => 'application/json',
         ])->post($baseUri . 'pixout/create', $payload);
 
-        if (! $resp->successful()) {
+        if (!$resp->successful()) {
             Log::warning('AutoWithdraw SharkPay: falha pixout/create', [
                 'status' => $resp->status(),
                 'body' => $resp->body(),
@@ -319,12 +270,8 @@ class ProcessAutoWithdrawal implements ShouldQueue
 
         $data = $resp->json();
 
-        $reference = $data['withdraw']['reference']
-            ?? $data['withdraw']['txid']
-            ?? $data['reference']
-            ?? null;
+        $reference = $data['withdraw']['reference'] ?? $data['withdraw']['txid'] ?? $data['reference'] ?? null;
 
-        // tenta salvar payment_id se existir na tabela
         if (!empty($reference) && isset($withdrawModel->payment_id)) {
             try {
                 $withdrawModel->payment_id = $reference;
@@ -334,13 +281,17 @@ class ProcessAutoWithdrawal implements ShouldQueue
             }
         }
 
-        // se provedor aceitou a requisição, consideramos ok
+        $status = $data['withdraw']['status'] ?? null;
+        if ($status === 'PAID' || $status === 1 || $status === '1') {
+            return true;
+        }
+
         return true;
     }
 
-    protected function markProcessing($model, bool $hasInQueue): void
+    protected function markProcessing($model, string $table): void
     {
-        if ($hasInQueue && isset($model->in_queue)) {
+        if (Schema::hasColumn($table, 'in_queue') && isset($model->in_queue)) {
             try {
                 $model->in_queue = 1;
                 $model->save();
@@ -350,12 +301,12 @@ class ProcessAutoWithdrawal implements ShouldQueue
         }
     }
 
-    protected function markPaid($model, bool $hasInQueue): void
+    protected function markPaid($model, string $table): void
     {
         try {
             $model->status = 1;
 
-            if ($hasInQueue && isset($model->in_queue)) {
+            if (Schema::hasColumn($table, 'in_queue') && isset($model->in_queue)) {
                 $model->in_queue = 2;
             }
 
@@ -365,15 +316,15 @@ class ProcessAutoWithdrawal implements ShouldQueue
         }
     }
 
-    protected function markFailed($model, bool $hasInQueue, string $reason): void
+    protected function markFailed($model, string $table, string $reason): void
     {
         Log::warning('AutoWithdraw: falhou', [
+            'table' => $table,
             'id' => $model->id ?? null,
             'reason' => $reason,
         ]);
 
-        // Mantém status 0 pra reprocessar depois, mas libera in_queue
-        if ($hasInQueue && isset($model->in_queue)) {
+        if (Schema::hasColumn($table, 'in_queue') && isset($model->in_queue)) {
             try {
                 $model->in_queue = 0;
                 $model->save();
