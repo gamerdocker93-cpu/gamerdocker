@@ -61,6 +61,9 @@ class Setting extends Model
         'digitopay_is_enable',
         'sharkpay_is_enable',
 
+        /// ✅ NOVO (players)
+        'auto_withdraw_players',
+
         /// withdrawal limit
         'withdrawal_limit',
         'withdrawal_period',
@@ -77,18 +80,7 @@ class Setting extends Model
         'rollover_deposit',
         'disable_rollover',
         'rollover_protection',
-
-        // ===============================
-        // AUTO WITHDRAW (NOVO)
-        // ===============================
-        'auto_withdraw_enabled',
-        'auto_withdraw_players',
-        'auto_withdraw_affiliates',
-        'auto_withdraw_affiliate_enabled',
-        'auto_withdraw_gateway',
     ];
 
-    protected $hidden = [
-        'updated_at'
-    ];
+    protected $hidden = array('updated_at');
 }
