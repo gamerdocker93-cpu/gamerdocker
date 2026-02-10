@@ -13,18 +13,10 @@ class TestQueueJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    // Tempo máximo (segundos) para este job
-    public int $timeout = 60;
-
-    // Número de tentativas
-    public int $tries = 1;
-
     public function handle(): void
     {
-        Log::info('TestQueueJob EXECUTADO com sucesso', [
-            'ts' => now()->toDateTimeString(),
-            'env' => app()->environment(),
-            'queue_connection' => config('queue.default'),
+        Log::info('QUEUE TEST OK - Job executado com sucesso', [
+            'time' => now()->toDateTimeString(),
         ]);
     }
 }
