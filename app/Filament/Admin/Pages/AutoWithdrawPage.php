@@ -37,13 +37,13 @@ class AutoWithdrawPage extends Page implements HasForms
         $this->setting = Setting::firstOrCreate([]);
 
         $this->form->fill([
+            // master
             'auto_withdraw_enabled' => (bool) ($this->setting->auto_withdraw_enabled ?? false),
+
+            // players
             'auto_withdraw_players' => (bool) ($this->setting->auto_withdraw_players ?? false),
 
-            // deixamos já pronto, mas você vai ligar depois (uma etapa por vez)
-            'auto_withdraw_affiliates' => (bool) ($this->setting->auto_withdraw_affiliates ?? false),
-            'auto_withdraw_affiliate_enabled' => (bool) ($this->setting->auto_withdraw_affiliate_enabled ?? false),
-
+            // payout
             'auto_withdraw_gateway' => (string) ($this->setting->auto_withdraw_gateway ?? 'sharkpay'),
             'auto_withdraw_batch_size' => (int) ($this->setting->auto_withdraw_batch_size ?? 20),
         ]);
@@ -56,7 +56,6 @@ class AutoWithdrawPage extends Page implements HasForms
                 Section::make('Auto Saque')
                     ->description('Ative/desative o saque automático e escolha o gateway de payout.')
                     ->schema([
-
                         Toggle::make('auto_withdraw_enabled')
                             ->label('Auto Saque (Master)')
                             ->helperText('Liga/desliga a automação de saque no sistema inteiro.')
@@ -65,17 +64,6 @@ class AutoWithdrawPage extends Page implements HasForms
                         Toggle::make('auto_withdraw_players')
                             ->label('Players (Usuários)')
                             ->helperText('Quando ativo, processa saques de jogadores automaticamente.')
-                            ->inline(false),
-
-                        // já deixamos visível, mas você não precisa ligar agora
-                        Toggle::make('auto_withdraw_affiliates')
-                            ->label('Afiliados (toggle interno)')
-                            ->helperText('Vamos ligar depois, em outra etapa.')
-                            ->inline(false),
-
-                        Toggle::make('auto_withdraw_affiliate_enabled')
-                            ->label('Afiliados (master)')
-                            ->helperText('Vamos ligar depois, em outra etapa.')
                             ->inline(false),
 
                         Select::make('auto_withdraw_gateway')
@@ -92,6 +80,7 @@ class AutoWithdrawPage extends Page implements HasForms
                             ->numeric()
                             ->minValue(1)
                             ->maxValue(200)
+                            ->default(20)
                             ->helperText('Quantos saques processar por rodada do job.')
                             ->required(),
                     ])
@@ -116,10 +105,6 @@ class AutoWithdrawPage extends Page implements HasForms
         $setting->update([
             'auto_withdraw_enabled' => (int) ($this->data['auto_withdraw_enabled'] ?? 0),
             'auto_withdraw_players' => (int) ($this->data['auto_withdraw_players'] ?? 0),
-
-            'auto_withdraw_affiliates' => (int) ($this->data['auto_withdraw_affiliates'] ?? 0),
-            'auto_withdraw_affiliate_enabled' => (int) ($this->data['auto_withdraw_affiliate_enabled'] ?? 0),
-
             'auto_withdraw_gateway' => (string) ($this->data['auto_withdraw_gateway'] ?? 'sharkpay'),
             'auto_withdraw_batch_size' => (int) ($this->data['auto_withdraw_batch_size'] ?? 20),
         ]);
