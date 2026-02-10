@@ -20,7 +20,6 @@ use Illuminate\Support\Facades\Cache;
 use Jackiedo\DotenvEditor\Facades\DotenvEditor;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
-
 class Settings extends Page implements HasForms
 {
     use InteractsWithForms;
@@ -101,7 +100,7 @@ class Settings extends Page implements HasForms
                             ->label('Background')
                             ->placeholder('Carregue um background')
                             ->image()
-                        ->columnSpanFull(),
+                            ->columnSpanFull(),
                     ]),
 
                 Section::make('Depositos e Saques')
@@ -128,6 +127,17 @@ class Settings extends Page implements HasForms
                             ->maxLength(191),
                     ])->columns(5),
 
+                // ✅ NOVO: Auto Saque (Players) - estilo "escorrega o dedo"
+                Section::make('Auto Saque')
+                    ->description('Ative/desative o saque automático por módulo.')
+                    ->schema([
+                        Toggle::make('auto_withdraw_players')
+                            ->inline(false)
+                            ->label('Auto Saque Jogadores')
+                            ->helperText('Quando ativo, o sistema tenta processar automaticamente os saques de jogadores (status pendente).'),
+                    ])
+                    ->columns(1),
+
                 Section::make('Taxas')
                     ->description('Configurações de Ganhos da Plataforma')
                     ->schema([
@@ -139,14 +149,14 @@ class Settings extends Page implements HasForms
                         Toggle::make('revshare_reverse')
                             ->inline(false)
                             ->label('Ativar RevShare Negativo')
-                            ->helperText('Esta opção possibilita que o afiliado acumule saldos negativos decorrentes das perdas geradas pelos seus indicados.')
-                        ,
+                            ->helperText('Esta opção possibilita que o afiliado acumule saldos negativos decorrentes das perdas geradas pelos seus indicados.'),
                         TextInput::make('ngr_percent')
                             ->label('NGR (%)')
                             ->numeric()
                             ->suffix('%')
                             ->maxLength(191),
                     ])->columns(3),
+
                 Section::make('Dados Gerais')
                     ->schema([
                         TextInput::make('initial_bonus')
@@ -192,9 +202,7 @@ class Settings extends Page implements HasForms
             Action::make('save')
                 ->label(__('Submit'))
                 ->action(fn () => $this->submit())
-                ->submit('submit')
-            //->url(route('filament.admin.pages.dashboard'))
-            ,
+                ->submit('submit'),
         ];
     }
 
@@ -205,20 +213,19 @@ class Settings extends Page implements HasForms
      */
     private function uploadFile($array)
     {
-        if(!empty($array) && is_array($array) || !empty($array) && is_object($array)) {
+        if (!empty($array) && is_array($array) || !empty($array) && is_object($array)) {
             foreach ($array as $k => $temporaryFile) {
                 if ($temporaryFile instanceof TemporaryUploadedFile) {
                     $path = \Helper::upload($temporaryFile);
-                    if($path) {
+                    if ($path) {
                         return $path['path'];
                     }
-                }else{
+                } else {
                     return $temporaryFile;
                 }
             }
         }
     }
-
 
     /**
      * @dev venixplataformas - Meu instagram
@@ -227,7 +234,7 @@ class Settings extends Page implements HasForms
     public function submit(): void
     {
         try {
-            if(env('APP_DEMO')) {
+            if (env('APP_DEMO')) {
                 Notification::make()
                     ->title('Atenção')
                     ->body('Você não pode realizar está alteração na versão demo')
@@ -236,10 +243,9 @@ class Settings extends Page implements HasForms
                 return;
             }
 
-
             $setting = Setting::first();
 
-            if(!empty($setting)) {
+            if (!empty($setting)) {
 
                 $favicon   = $this->data['software_favicon'];
                 $logoWhite = $this->data['software_logo_white'];
@@ -247,25 +253,25 @@ class Settings extends Page implements HasForms
                 $softwareBackground = $this->data['software_background'];
 
                 if (is_array($softwareBackground) || is_object($softwareBackground)) {
-                    if(!empty($softwareBackground)) {
+                    if (!empty($softwareBackground)) {
                         $this->data['software_background'] = $this->uploadFile($softwareBackground);
                     }
                 }
 
                 if (is_array($favicon) || is_object($favicon)) {
-                    if(!empty($favicon)) {
+                    if (!empty($favicon)) {
                         $this->data['software_favicon'] = $this->uploadFile($favicon);
                     }
                 }
 
                 if (is_array($logoWhite) || is_object($logoWhite)) {
-                    if(!empty($logoWhite)) {
+                    if (!empty($logoWhite)) {
                         $this->data['software_logo_white'] = $this->uploadFile($logoWhite);
                     }
                 }
 
                 if (is_array($logoBlack) || is_object($logoBlack)) {
-                    if(!empty($logoBlack)) {
+                    if (!empty($logoBlack)) {
                         $this->data['software_logo_black'] = $this->uploadFile($logoBlack);
                     }
                 }
@@ -278,7 +284,7 @@ class Settings extends Page implements HasForms
 
                 $envs->save();
 
-                if($setting->update($this->data)) {
+                if ($setting->update($this->data)) {
 
                     Cache::put('setting', $setting);
 
@@ -289,11 +295,8 @@ class Settings extends Page implements HasForms
                         ->send();
 
                     redirect(route('filament.admin.pages.dashboard-admin'));
-
                 }
             }
-
-
         } catch (Halt $exception) {
             Notification::make()
                 ->title('Erro ao alterar dados!')
@@ -302,6 +305,4 @@ class Settings extends Page implements HasForms
                 ->send();
         }
     }
-
-
 }
