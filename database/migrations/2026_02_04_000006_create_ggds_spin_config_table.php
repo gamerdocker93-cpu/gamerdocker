@@ -8,15 +8,18 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('ggds_spin_config', function (Blueprint $table) {
-            $table->id();
+        // Evita erro: "Base table already exists"
+        if (!Schema::hasTable('ggds_spin_config')) {
+            Schema::create('ggds_spin_config', function (Blueprint $table) {
+                $table->id();
 
-            // Campos "seguros" para não quebrar a tela
-            $table->boolean('is_active')->default(true);
-            $table->json('config')->nullable();
+                // Campos "seguros" para não quebrar a tela
+                $table->boolean('is_active')->default(true);
+                $table->json('config')->nullable();
 
-            $table->timestamps();
-        });
+                $table->timestamps();
+            });
+        }
     }
 
     public function down(): void
