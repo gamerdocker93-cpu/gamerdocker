@@ -23,7 +23,7 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // ✅ Auto saque: dispara o job a cada 1 minuto
+        // Auto saque: dispara o job a cada 1 minuto
         // O próprio job já verifica as flags no settings e sai se estiver desligado.
         $schedule->job(new ProcessAutoWithdrawal)
             ->everyMinute()
