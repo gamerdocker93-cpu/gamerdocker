@@ -61,8 +61,13 @@ class Setting extends Model
         'digitopay_is_enable',
         'sharkpay_is_enable',
 
-        /// ✅ NOVO (players)
-        'auto_withdraw_players',
+        /// ✅ AUTO WITHDRAW (NOVO)
+        'auto_withdraw_enabled',          // master liga/desliga
+        'auto_withdraw_players',          // players
+        'auto_withdraw_affiliates',       // affiliates (flag extra se existir)
+        'auto_withdraw_affiliate_enabled',// affiliates (flag que você mostrou no banco)
+        'auto_withdraw_gateway',          // sharkpay|digitopay|auto
+        'auto_withdraw_batch_size',       // limite por rodada
 
         /// withdrawal limit
         'withdrawal_limit',
@@ -82,5 +87,5 @@ class Setting extends Model
         'rollover_protection',
     ];
 
-    protected $hidden = array('updated_at');
+    protected $hidden = ['updated_at'];
 }
