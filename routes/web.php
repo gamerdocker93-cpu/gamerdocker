@@ -60,3 +60,19 @@ if (file_exists(__DIR__ . '/groups/layouts/app.php')) {
 Route::get('/', function () {
     return view('layouts.app');
 });
+
+use App\Jobs\TestQueueJob;
+
+Route::get('/queue-test', function () {
+
+    if (request('token') !== env('QUEUE_TEST_TOKEN')) {
+        abort(403);
+    }
+
+    TestQueueJob::dispatch();
+
+    return response()->json([
+        'status' => 'ok',
+        'message' => 'Job enviado para fila'
+    ]);
+});
