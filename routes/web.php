@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Log;
+use App\Jobs\TestQueueJob;
 
 /**
  * Healthcheck simples (opcional)
@@ -11,40 +12,53 @@ Route::get('/health', function () {
 });
 
 /**
- * TESTE DA FILA (Database Queue)
- * Acesse: /test-queue
- *
- * OBS: Está “safe” para não derrubar deploy caso o Job não exista.
+ * ROTA SEGURA DE TESTE DA FILA (não renderiza Vue)
+ * - Se o token estiver errado: 404 (não denuncia que existe)
+ * - Se estiver certo: despacha job e retorna JSON
  */
-Route::get('/test-queue', function () {
-    try {
-        $jobClass = \App\Jobs\TestQueueJob::class;
+Route::get('/queue-test', function () {
+    $token = (string) request()->query('token', '');
+    $expected = (string) env('QUEUE_TEST_TOKEN', '');
 
-        if (!class_exists($jobClass)) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'Classe TestQueueJob não encontrada em app/Jobs/TestQueueJob.php',
-            ], 500);
-        }
-
-        dispatch(new $jobClass());
-
-        return response()->json([
-            'ok' => true,
-            'message' => 'Job enviado para a fila com sucesso!',
-            'time' => now()->toDateTimeString(),
-        ]);
-    } catch (\Throwable $e) {
-        Log::error('Erro ao despachar TestQueueJob', [
-            'message' => $e->getMessage(),
-        ]);
-
-        return response()->json([
-            'ok' => false,
-            'message' => 'Falha ao enviar job para fila',
-            'error' => $e->getMessage(),
-        ], 500);
+    // "stealth": se não bater, finge que não existe
+    if ($expected === '' || !hash_equals($expected, $token)) {
+        abort(404);
     }
+
+    // força usar conexão database (mesmo que env esteja errado)
+    TestQueueJob::dispatch()
+        ->onConnection('database')
+        ->onQueue('default');
+
+    Log::info('QUEUE_TEST: job despachado via /queue-test');
+
+    return response()->json([
+        'ok' => true,
+        'dispatched' => true,
+        'connection' => 'database',
+        'queue' => 'default',
+        'ts' => now()->toDateTimeString(),
+    ]);
+});
+
+/**
+ * (Opcional) alias interno
+ */
+Route::get('/_internal/queue/test', function () {
+    $token = (string) request()->query('token', '');
+    $expected = (string) env('QUEUE_TEST_TOKEN', '');
+
+    if ($expected === '' || !hash_equals($expected, $token)) {
+        abort(404);
+    }
+
+    TestQueueJob::dispatch()
+        ->onConnection('database')
+        ->onQueue('default');
+
+    Log::info('QUEUE_TEST: job despachado via /_internal/queue/test');
+
+    return response()->json(['ok' => true, 'dispatched' => true]);
 });
 
 /**
@@ -55,24 +69,8 @@ if (file_exists(__DIR__ . '/groups/layouts/app.php')) {
 }
 
 /**
- * Vue está em HASH MODE (#/...), então não precisa SPA fallback.
+ * Página principal (Vue em hash mode)
  */
 Route::get('/', function () {
     return view('layouts.app');
-});
-
-use App\Jobs\TestQueueJob;
-
-Route::get('/queue-test', function () {
-
-    if (request('token') !== env('QUEUE_TEST_TOKEN')) {
-        abort(403);
-    }
-
-    TestQueueJob::dispatch();
-
-    return response()->json([
-        'status' => 'ok',
-        'message' => 'Job enviado para fila'
-    ]);
 });
