@@ -34,17 +34,23 @@ if (!function_exists('_internalTokenOr404')) {
  * DB PING (interno) - não depende da UI do Railway
  * Use:
  * /_internal/db/ping?token=SEU_TOKEN
+ *
+ * Importante: tenta conexão + SELECT 1 pra validar de verdade.
  */
 Route::get('/_internal/db/ping', function (Request $request) {
     _internalTokenOr404($request);
 
     try {
+        // força conexão e valida com query simples
         DB::connection()->getPdo();
+        DB::select('SELECT 1 as ok');
 
         return response()->json([
             'ok' => true,
+            'connection' => DB::connection()->getName(),
             'db' => DB::connection()->getDatabaseName(),
-            'host' => config('database.connections.mysql.host'),
+            'host' => (string) config('database.connections.mysql.host'),
+            'port' => (string) config('database.connections.mysql.port'),
             'ts' => now()->toDateTimeString(),
         ]);
     } catch (\Throwable $e) {
