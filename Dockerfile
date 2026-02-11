@@ -102,16 +102,21 @@ RUN cat > /usr/local/bin/start.sh << 'SCRIPT_END'
 set -e
 
 echo "=================================================="
-echo "INICIANDO APLICACAO LARAVEL"
+echo "INICIANDO APLICACAO LARAVEL (NGINX + PHP-FPM)"
 echo "=================================================="
 
+# Ajusta porta do nginx conforme Railway
 sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf
 
 # NÃO LOGAR SEGREDOS
 echo ""
 echo "VERIFICACAO:"
+echo "  APP_ENV: ${APP_ENV:-production}"
+echo "  APP_DEBUG: ${APP_DEBUG:-false}"
 echo "  APP_CIPHER: ${APP_CIPHER:-aes-256-cbc}"
 echo "  APP_KEY: (set? $( [ -n "${APP_KEY}" ] && echo yes || echo no ))"
+echo "  DB_HOST: ${DB_HOST:-}"
+echo "  DB_DATABASE: ${DB_DATABASE:-}"
 echo ""
 
 if [ -z "${APP_KEY}" ]; then
@@ -142,7 +147,7 @@ rm -f /var/www/html/public/hot 2>/dev/null || true
 rm -f /var/www/html/public/build/hot 2>/dev/null || true
 
 # ============================================================
-# INJECAO: GARANTIR QUE O BLADE PUXA VITE E CSRF (PROD)
+# GARANTIR QUE O BLADE PUXA VITE E CSRF (PROD)
 # ============================================================
 BLADE_FILE="/var/www/html/resources/views/layouts/app.blade.php"
 if [ -f "$BLADE_FILE" ]; then
@@ -158,8 +163,7 @@ fi
 echo ""
 echo "================ VITE CHECK (public/build) ================"
 if [ -f /var/www/html/public/build/manifest.json ]; then
-  echo "manifest.json OK"
-  echo "manifest.json size: $(wc -c < /var/www/html/public/build/manifest.json) bytes"
+  echo "manifest.json OK (size: $(wc -c < /var/www/html/public/build/manifest.json) bytes)"
 else
   echo "ERRO: public/build/manifest.json nao existe"
 fi
@@ -186,7 +190,37 @@ php artisan config:clear   >/dev/null 2>&1 || true
 php artisan cache:clear    >/dev/null 2>&1 || true
 php artisan route:clear    >/dev/null 2>&1 || true
 
-if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
+# ============================================================
+# DB WAIT (curto) + COMANDOS OBRIGATORIOS (SEM DERRUBAR DEPLOY)
+# ============================================================
+echo ""
+echo "================ BOOT COMMANDS (obrigatorios) ================"
+
+db_ok=0
+if [ -n "${DB_HOST:-}" ] && [ -n "${DB_DATABASE:-}" ] && [ -n "${DB_USERNAME:-}" ]; then
+  for i in $(seq 1 20); do
+    php -r '
+      $h=getenv("DB_HOST"); $p=getenv("DB_PORT")?: "3306";
+      $db=getenv("DB_DATABASE"); $u=getenv("DB_USERNAME"); $pw=getenv("DB_PASSWORD")?: "";
+      try { new PDO("mysql:host=$h;port=$p;dbname=$db;charset=utf8mb4",$u,$pw,[PDO::ATTR_TIMEOUT=>2]); exit(0); }
+      catch(Exception $e){ exit(1); }
+    ' >/dev/null 2>&1 && db_ok=1 && break
+    sleep 1
+  done
+fi
+
+if [ "$db_ok" = "1" ]; then
+  echo "INFO DB OK -> rodando comandos obrigatorios"
+  php artisan optimize:clear || true
+  php artisan tempadmin:create || true
+  php artisan fix:admin-role || true
+  php artisan spin:init || true
+else
+  echo "AVISO: DB indisponivel -> pulando comandos que dependem de DB (para nao derrubar deploy)"
+fi
+
+# Migrations (só se você habilitar RUN_MIGRATIONS=1)
+if [ "${RUN_MIGRATIONS:-0}" = "1" ]; then
   echo "INFO Running migrations..."
   set +e
   OUT=$(php artisan migrate --force --no-interaction 2>&1)
@@ -200,7 +234,7 @@ if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
     echo "DB: migrations OK"
   fi
 else
-  echo "INFO RUN_MIGRATIONS!=1"
+  echo "INFO RUN_MIGRATIONS!=1 (skip migrations)"
 fi
 
 echo "=================================================="
