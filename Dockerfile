@@ -1,10 +1,8 @@
 FROM node:18-alpine AS build-assets
 WORKDIR /app
 
-# Copia o projeto inteiro ANTES de buildar (evita manifest antigo)
 COPY . .
 
-# Dependências e build
 RUN npm install
 RUN rm -rf public/build
 RUN npm run build
@@ -12,7 +10,6 @@ RUN npm run build
 
 FROM php:8.2-fpm
 
-# Evita prompts e melhora estabilidade do apt no CI (Railway)
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN set -eux; \
@@ -31,9 +28,7 @@ RUN set -eux; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*
 
-# ==========================================
 # FORÇA PHP-FPM A NÃO LIMPAR VARIÁVEIS ENV
-# ==========================================
 RUN sed -i 's/;clear_env = no/clear_env = no/g; s/clear_env = yes/clear_env = no/g' /usr/local/etc/php-fpm.d/www.conf
 
 # php-fpm via TCP
@@ -55,7 +50,7 @@ COPY . .
 RUN composer dump-autoload -o \
  && php artisan package:discover --ansi || true
 
-# Limpa build antigo antes de copiar o novo (evita misturar arquivos)
+# Limpa build antigo antes de copiar o novo
 RUN rm -rf /var/www/html/public/build
 
 # Copia os assets buildados do estágio do Node
@@ -74,7 +69,6 @@ RUN printf '%s\n' \
 '  root /var/www/html/public;' \
 '  index index.php;' \
 '' \
-'  # Assets do Vite (public/build) - só arquivo, nada de pasta' \
 '  location ^~ /build/ {' \
 '    try_files $uri =404;' \
 '    access_log off;' \
@@ -82,7 +76,6 @@ RUN printf '%s\n' \
 '    add_header Cache-Control "public, max-age=31536000, immutable";' \
 '  }' \
 '' \
-'  # IMPORTANTE: nao usar $uri/ aqui (evita 403 ao cair em diretorio tipo /build/)' \
 '  location / {' \
 '    try_files $uri /index.php?$query_string;' \
 '  }' \
@@ -105,17 +98,24 @@ echo "=================================================="
 echo "INICIANDO APLICACAO LARAVEL (NGINX + PHP-FPM)"
 echo "=================================================="
 
+# Ajusta porta do Railway
 sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf
 
-# NÃO LOGAR SEGREDOS
+# Não deixar .env do repo sobrescrever env do Railway
+rm -f /var/www/html/.env 2>/dev/null || true
+
+# Remove hot do Vite
+rm -f /var/www/html/public/hot 2>/dev/null || true
+rm -f /var/www/html/public/build/hot 2>/dev/null || true
+
 echo ""
 echo "VERIFICACAO:"
-echo "  APP_ENV: ${APP_ENV}"
-echo "  APP_DEBUG: ${APP_DEBUG}"
+echo "  APP_ENV: ${APP_ENV:-production}"
+echo "  APP_DEBUG: ${APP_DEBUG:-false}"
 echo "  APP_CIPHER: ${APP_CIPHER:-aes-256-cbc}"
 echo "  APP_KEY: (set? $( [ -n "${APP_KEY}" ] && echo yes || echo no ))"
-echo "  DB_HOST: ${DB_HOST}"
-echo "  DB_DATABASE: ${DB_DATABASE}"
+echo "  DB_HOST: ${DB_HOST:-}"
+echo "  DB_DATABASE: ${DB_DATABASE:-}"
 echo ""
 
 if [ -z "${APP_KEY}" ]; then
@@ -138,38 +138,13 @@ fi
 export APP_KEY="$APP_KEY_CLEAN"
 export APP_CIPHER="${APP_CIPHER:-aes-256-cbc}"
 
-# Evita sobrescrita por .env (se existir)
-rm -f /var/www/html/.env 2>/dev/null || true
-
-# Garante modo PROD (remove hot files)
-rm -f /var/www/html/public/hot 2>/dev/null || true
-rm -f /var/www/html/public/build/hot 2>/dev/null || true
-
-# ============================================================
-# INJECAO: GARANTIR QUE O BLADE PUXA VITE E CSRF (PROD)
-# ============================================================
-BLADE_FILE="/var/www/html/resources/views/layouts/app.blade.php"
-if [ -f "$BLADE_FILE" ]; then
-  if ! grep -q 'name="csrf-token"' "$BLADE_FILE"; then
-    sed -i '/<\/head>/i\    <meta name="csrf-token" content="{{ csrf_token() }}">' "$BLADE_FILE" || true
-  fi
-
-  if ! grep -q "@vite(" "$BLADE_FILE"; then
-    sed -i "/<\/head>/i\    @vite(['resources/css/app.css', 'resources/js/app.js'])" "$BLADE_FILE" || true
-  fi
-fi
-
 echo ""
 echo "================ VITE CHECK (public/build) ================"
 if [ -f /var/www/html/public/build/manifest.json ]; then
   echo "manifest.json OK (size: $(wc -c < /var/www/html/public/build/manifest.json) bytes)"
 else
-  echo "ERRO: public/build/manifest.json nao existe"
+  echo "AVISO: public/build/manifest.json nao existe"
 fi
-
-echo ""
-echo "Assets em public/build/assets:"
-ls -la /var/www/html/public/build/assets 2>/dev/null || echo "Sem pasta assets em public/build"
 
 echo ""
 echo "================ DIAG RUNTIME ================"
@@ -181,27 +156,57 @@ if [ "${APP_CIPHER}" = "aes-256-cbc" ] && [ "${KEY_LEN}" != "32" ]; then
   exit 1
 fi
 
-# ============================================================
-# CRITICO: NAO RODAR 'php artisan ...' AQUI
-# (quando DB/Railway instavel, pode travar antes do BOOT)
-# Limpa caches manualmente (SEM artisan)
-# ============================================================
+# Limpa caches runtime (rápido; não pode travar)
 rm -f bootstrap/cache/*.php 2>/dev/null || true
-rm -rf storage/framework/cache/* 2>/dev/null || true
-rm -rf storage/framework/views/* 2>/dev/null || true
+php artisan optimize:clear >/dev/null 2>&1 || true
 
-echo ""
-echo "================ BOOT COMMANDS (obrigatorios) ================"
+# ----------------------------
+# DB CHECK (nao pode travar boot)
+# ----------------------------
+DB_OK=0
+if [ -n "${DB_HOST:-}" ] && [ -n "${DB_DATABASE:-}" ] && [ -n "${DB_USERNAME:-}" ]; then
+  php -r '
+    $h=getenv("DB_HOST"); $db=getenv("DB_DATABASE"); $u=getenv("DB_USERNAME"); $p=getenv("DB_PASSWORD");
+    $port=getenv("DB_PORT") ?: "3306";
+    try {
+      $pdo=new PDO("mysql:host={$h};port={$port};dbname={$db};charset=utf8mb4",$u,$p,[
+        PDO::ATTR_TIMEOUT=>3,
+        PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION
+      ]);
+      $pdo->query("SELECT 1");
+      exit(0);
+    } catch(Throwable $e) { exit(1); }
+  ' && DB_OK=1 || DB_OK=0
+fi
 
-# Se você precisa rodar comandos obrigatórios, faça no Start Command do Railway,
-# não aqui, para não travar o container.
+if [ "$DB_OK" = "1" ]; then
+  echo "DB: OK (conexao rapida)"
+
+  echo ""
+  echo "=========== BOOT COMMANDS (nao podem derrubar) ==========="
+  # tudo com timeout para nunca travar o container
+  timeout 20s php artisan tempadmin:create >/dev/null 2>&1 || true
+  timeout 20s php artisan fix:admin-role   >/dev/null 2>&1 || true
+  timeout 25s php artisan spin:init        >/dev/null 2>&1 || true
+
+  # migrations opcionais (só se alguém ligar)
+  if [ "${RUN_MIGRATIONS:-0}" = "1" ]; then
+    echo "INFO Running migrations..."
+    timeout 60s php artisan migrate --force --no-interaction >/dev/null 2>&1 || true
+  else
+    echo "INFO RUN_MIGRATIONS!=1 (skip)"
+  fi
+else
+  echo "AVISO: DB nao respondeu rapido (timeout). Vou subir o servidor mesmo assim."
+  echo "       (Isso evita 504/queda do container. Quando o DB estabilizar, reinicia o deploy.)"
+fi
 
 echo "=================================================="
 echo "APLICACAO PRONTA"
 echo "=================================================="
 
 php-fpm -D
-nginx -g "daemon off;"
+exec nginx -g "daemon off;"
 SCRIPT_END
 
 RUN chmod +x /usr/local/bin/start.sh
