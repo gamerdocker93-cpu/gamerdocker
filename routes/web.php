@@ -139,3 +139,74 @@ if (file_exists(__DIR__ . '/groups/layouts/app.php')) {
 Route::get('/', function () {
     return view('layouts.app');
 });
+
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+// GET temporário p/ teste via celular (token obrigatório)
+Route::get('/_internal/spin/start', function () {
+    $token = (string) request()->query('token', '');
+    $expected = (string) env('QUEUE_TEST_TOKEN', '');
+
+    if ($expected === '' || !hash_equals($expected, $token)) {
+        abort(404);
+    }
+
+    // parâmetros via querystring (mais fácil no celular)
+    $provider  = (string) request()->query('provider', 'demo');
+    $game_code = (string) request()->query('game_code', 'demo_game');
+
+    // gera request_id
+    $requestId = (string) Str::uuid();
+
+    // Salva numa tabela EXISTENTE do seu projeto: spin_runs
+    // (você tem Model SpinRuns.php e provavelmente tabela spin_runs)
+    // Se der erro aqui, me mande o schema da tabela spin_runs.
+    DB::table('spin_runs')->insert([
+        'request_id' => $requestId,
+        'provider' => $provider,
+        'game_code' => $game_code,
+        'status' => 'queued',
+        'result' => null,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    // Despacha job (se você tiver um Job específico, substitui aqui)
+    // Por enquanto, vamos só logar para confirmar fluxo
+    Log::info('SPIN_START: criado', ['request_id' => $requestId, 'provider' => $provider, 'game_code' => $game_code]);
+
+    return response()->json([
+        'ok' => true,
+        'request_id' => $requestId,
+        'status' => 'queued',
+        'provider' => $provider,
+        'game_code' => $game_code,
+        'ts' => now()->toDateTimeString(),
+    ]);
+});
+
+// Consultar status pelo request_id
+Route::get('/_internal/spin/status/{request_id}', function (string $request_id) {
+    $token = (string) request()->query('token', '');
+    $expected = (string) env('QUEUE_TEST_TOKEN', '');
+
+    if ($expected === '' || !hash_equals($expected, $token)) {
+        abort(404);
+    }
+
+    $row = DB::table('spin_runs')->where('request_id', $request_id)->first();
+
+    if (!$row) {
+        return response()->json(['ok' => false, 'error' => 'not_found'], 404);
+    }
+
+    return response()->json([
+        'ok' => true,
+        'request_id' => $row->request_id,
+        'status' => $row->status,
+        'result' => $row->result,
+        'updated_at' => (string) $row->updated_at,
+    ]);
+});
