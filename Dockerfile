@@ -12,16 +12,24 @@ RUN npm run build
 
 FROM php:8.2-fpm
 
-RUN apt-get update && apt-get install -y \
-    nginx \
-    libicu-dev \
-    libzip-dev \
-    zip unzip git \
-    libpng-dev libjpeg-dev libfreetype6-dev \
-    bash \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo_mysql intl zip bcmath gd \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+# Evita prompts e melhora estabilidade do apt no CI (Railway)
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN set -eux; \
+    apt-get -o Acquire::Retries=5 update; \
+    apt-get install -y --no-install-recommends \
+      nginx \
+      libicu-dev \
+      libzip-dev \
+      zip unzip git \
+      libpng-dev libjpeg-dev libfreetype6-dev \
+      bash \
+      ca-certificates \
+    ; \
+    docker-php-ext-configure gd --with-freetype --with-jpeg; \
+    docker-php-ext-install pdo_mysql intl zip bcmath gd; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*
 
 # ==========================================
 # FORÇA PHP-FPM A NÃO LIMPAR VARIÁVEIS ENV
@@ -99,10 +107,11 @@ echo "=================================================="
 
 sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/conf.d/default.conf
 
+# NÃO LOGAR SEGREDOS
 echo ""
 echo "VERIFICACAO:"
-echo "  APP_CIPHER: ${APP_CIPHER}"
-echo "  APP_KEY: ${APP_KEY}"
+echo "  APP_CIPHER: ${APP_CIPHER:-aes-256-cbc}"
+echo "  APP_KEY: (set? $( [ -n "${APP_KEY}" ] && echo yes || echo no ))"
 echo ""
 
 if [ -z "${APP_KEY}" ]; then
@@ -134,17 +143,14 @@ rm -f /var/www/html/public/build/hot 2>/dev/null || true
 
 # ============================================================
 # INJECAO: GARANTIR QUE O BLADE PUXA VITE E CSRF (PROD)
-# (feito com insercao segura, sem sed s/// gigante)
 # ============================================================
 BLADE_FILE="/var/www/html/resources/views/layouts/app.blade.php"
 if [ -f "$BLADE_FILE" ]; then
   if ! grep -q 'name="csrf-token"' "$BLADE_FILE"; then
-    # Insere ANTES do </head>
     sed -i '/<\/head>/i\    <meta name="csrf-token" content="{{ csrf_token() }}">' "$BLADE_FILE" || true
   fi
 
   if ! grep -q "@vite(" "$BLADE_FILE"; then
-    # Insere ANTES do </head>
     sed -i "/<\/head>/i\    @vite(['resources/css/app.css', 'resources/js/app.js'])" "$BLADE_FILE" || true
   fi
 fi
@@ -163,90 +169,9 @@ echo "Assets em public/build/assets:"
 ls -la /var/www/html/public/build/assets 2>/dev/null || echo "Sem pasta assets em public/build"
 
 echo ""
-echo "================ MANIFEST APP ENTRY CHECK ================"
-if [ -f /var/www/html/public/build/manifest.json ]; then
-  APP_FILE=$(php -r '$m=json_decode(file_get_contents("/var/www/html/public/build/manifest.json"),true); echo $m["resources/js/app.js"]["file"] ?? "";')
-  echo "manifest resources/js/app.js file: $APP_FILE"
-  if [ -n "$APP_FILE" ] && [ -f "/var/www/html/public/build/$APP_FILE" ]; then
-    echo "app entry size bytes: $(wc -c < "/var/www/html/public/build/$APP_FILE")"
-  else
-    echo "app entry file nao encontrado no disco"
-  fi
-fi
-
-echo ""
 echo "================ DIAG RUNTIME ================"
-echo "SHELL APP_KEY (curto): $(printf '%s' "$APP_KEY" | cut -c1-25)..."
-echo "SHELL APP_CIPHER: $APP_CIPHER"
 echo "APP_KEY bytes (calculado): ${KEY_LEN}"
-
-echo ""
-echo "1) PHP: getenv / \$_ENV / \$_SERVER"
-php -r '
-echo "getenv(APP_KEY)=".(getenv("APP_KEY")?: "NULL").PHP_EOL;
-echo "getenv(APP_CIPHER)=".(getenv("APP_CIPHER")?: "NULL").PHP_EOL;
-echo "_ENV[APP_KEY]=".(isset($_ENV["APP_KEY"])?$_ENV["APP_KEY"]:"NULL").PHP_EOL;
-echo "_SERVER[APP_KEY]=".(isset($_SERVER["APP_KEY"])?$_SERVER["APP_KEY"]:"NULL").PHP_EOL;
-echo "_ENV[APP_CIPHER]=".(isset($_ENV["APP_CIPHER"])?$_ENV["APP_CIPHER"]:"NULL").PHP_EOL;
-echo "_SERVER[APP_CIPHER]=".(isset($_SERVER["APP_CIPHER"])?$_SERVER["APP_CIPHER"]:"NULL").PHP_EOL;
-'
-
-echo ""
-echo "2) Laravel bootstrap: env(APP_KEY) / config(app.key/app.cipher)"
-php -r '
-require "vendor/autoload.php";
-$app=require "bootstrap/app.php";
-$k=$app->make(Illuminate\Contracts\Console\Kernel::class);
-$k->bootstrap();
-echo "env(APP_KEY)=".env("APP_KEY").PHP_EOL;
-echo "config(app.key)=".config("app.key").PHP_EOL;
-echo "config(app.cipher)=".config("app.cipher").PHP_EOL;
-' || true
-
-echo ""
-echo "3) .env no container?"
-ls -la /var/www/html/.env* 2>/dev/null || echo "Nenhum .env encontrado"
-
-echo ""
-echo "4) bootstrap/cache"
-ls -la /var/www/html/bootstrap/cache 2>/dev/null || true
-ls -la /var/www/html/bootstrap/cache/config.php 2>/dev/null || echo "config.php nao existe"
-
-echo ""
-echo "5) php-fpm loaded conf / clear_env"
-php-fpm -tt 2>&1 | grep -i -n "loaded configuration\|include\|pool\|clear_env" || true
-
-echo ""
-if [ "${RUN_DIAG_KEYSCAN:-0}" = "1" ]; then
-  echo "6) Procurando a chave antiga (9687f / OTY4N2Y1) e overrides de app.key"
-
-  grep -R --line-number \
-    --exclude=Dockerfile \
-    --exclude-dir=vendor \
-    --exclude-dir=node_modules \
-    "9687f5e" /var/www/html 2>/dev/null | head -n 80 || true
-
-  grep -R --line-number \
-    --exclude=Dockerfile \
-    --exclude-dir=vendor \
-    --exclude-dir=node_modules \
-    "OTY4N2Y1" /var/www/html 2>/dev/null | head -n 80 || true
-
-  grep -R --line-number \
-    --exclude-dir=vendor \
-    --exclude-dir=node_modules \
-    "app\.key" /var/www/html/app /var/www/html/config 2>/dev/null | head -n 120 || true
-
-  grep -R --line-number \
-    --exclude-dir=vendor \
-    --exclude-dir=node_modules \
-    "config\s*\(\s*\[\s*['\"]app\.key['\"]" /var/www/html/app /var/www/html/config 2>/dev/null | head -n 120 || true
-else
-  echo "6) Keyscan desativado (defina RUN_DIAG_KEYSCAN=1 para ativar)."
-fi
-
-echo "================ FIM DIAG ===================="
-echo ""
+echo "APP_CIPHER: ${APP_CIPHER}"
 
 if [ "${APP_CIPHER}" = "aes-256-cbc" ] && [ "${KEY_LEN}" != "32" ]; then
   echo "ERRO: APP_KEY invalido (precisa 32 bytes)."
