@@ -2,12 +2,10 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Log;
-use App\Jobs\TestQueueJob;
-
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use App\Models\Spin;
-use App\Jobs\ProcessSpinJob;
+use Illuminate\Support\Facades\DB;
+use App\Jobs\TestQueueJob;
 
 /**
  * Healthcheck simples (opcional)
@@ -25,12 +23,10 @@ Route::get('/queue-test', function () {
     $token = (string) request()->query('token', '');
     $expected = (string) env('QUEUE_TEST_TOKEN', '');
 
-    // "stealth": se não bater, finge que não existe
     if ($expected === '' || !hash_equals($expected, $token)) {
         abort(404);
     }
 
-    // força usar conexão database (mesmo que env esteja errado)
     TestQueueJob::dispatch()
         ->onConnection('database')
         ->onQueue('default');
@@ -67,62 +63,91 @@ Route::get('/_internal/queue/test', function () {
 });
 
 /**
- * ROTAS INTERNAS SEGURAS (SPIN)
- * - não renderiza Vue
+ * ROTAS INTERNAS SEGURAS (SPIN) - versão compatível com celular (GET)
+ * - não depende de auth()
+ * - grava em spin_runs (se existir)
  * - 404 se token errado (stealth)
+ *
+ * START (GET):
+ * /_internal/spin/start?token=XXX&provider=demo&game_code=demo_game
+ *
+ * STATUS (GET):
+ * /_internal/spin/status/{request_id}?token=XXX
  */
-
-// inicia spin (dispatch pro worker)
-Route::post('/_internal/spin/start', function (Request $request) {
-    $token = (string) $request->query('token', '');
+Route::get('/_internal/spin/start', function () {
+    $token = (string) request()->query('token', '');
     $expected = (string) env('QUEUE_TEST_TOKEN', '');
 
     if ($expected === '' || !hash_equals($expected, $token)) {
         abort(404);
     }
 
+    $provider  = (string) request()->query('provider', 'demo');
+    $game_code = (string) request()->query('game_code', 'demo_game');
+
     $requestId = (string) Str::uuid();
 
-    $spin = Spin::create([
-        'user_id'    => auth()->id(),
-        'provider'   => $request->input('provider'),
-        'game_code'  => $request->input('game_code'),
-        'status'     => 'queued',
-        'request_id' => $requestId,
-        'request'    => $request->all(),
-    ]);
+    // Se a tabela spin_runs existir, grava (se não existir, só retorna o request_id)
+    try {
+        DB::table('spin_runs')->insert([
+            'request_id' => $requestId,
+            'provider' => $provider,
+            'game_code' => $game_code,
+            'status' => 'queued',
+            'result' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    } catch (\Throwable $e) {
+        Log::warning('SPIN_START: não gravou em spin_runs (tabela/colunas podem não existir)', [
+            'request_id' => $requestId,
+            'err' => $e->getMessage(),
+        ]);
+    }
 
-    // deixa explícito: conexão database + fila default
-    ProcessSpinJob::dispatch($requestId)
-        ->onConnection('database')
-        ->onQueue('default');
+    // Se existir um job de spin, despacha. Se não existir, não quebra deploy.
+    if (class_exists(\App\Jobs\ProcessSpinJob::class)) {
+        \App\Jobs\ProcessSpinJob::dispatch($requestId)
+            ->onConnection('database')
+            ->onQueue('default');
+    } else {
+        Log::info('SPIN_START: ProcessSpinJob não existe, apenas gerando request_id', ['request_id' => $requestId]);
+    }
 
     return response()->json([
         'ok' => true,
         'request_id' => $requestId,
-        'status' => $spin->status,
+        'status' => 'queued',
+        'provider' => $provider,
+        'game_code' => $game_code,
+        'ts' => now()->toDateTimeString(),
     ]);
 });
 
-// consulta status/resultado
-Route::get('/_internal/spin/{requestId}', function (Request $request, string $requestId) {
-    $token = (string) $request->query('token', '');
+Route::get('/_internal/spin/status/{request_id}', function (string $request_id) {
+    $token = (string) request()->query('token', '');
     $expected = (string) env('QUEUE_TEST_TOKEN', '');
 
     if ($expected === '' || !hash_equals($expected, $token)) {
         abort(404);
     }
 
-    $spin = Spin::where('request_id', $requestId)->first();
-    if (!$spin) {
+    try {
+        $row = DB::table('spin_runs')->where('request_id', $request_id)->first();
+    } catch (\Throwable $e) {
+        return response()->json(['ok' => false, 'error' => 'spin_runs_unavailable'], 500);
+    }
+
+    if (!$row) {
         return response()->json(['ok' => false, 'error' => 'not_found'], 404);
     }
 
     return response()->json([
         'ok' => true,
-        'status' => $spin->status,
-        'result' => $spin->status === 'done' ? $spin->result : null,
-        'error' => $spin->status === 'failed' ? $spin->error : null,
+        'request_id' => $row->request_id,
+        'status' => $row->status ?? null,
+        'result' => $row->result ?? null,
+        'updated_at' => isset($row->updated_at) ? (string) $row->updated_at : null,
     ]);
 });
 
@@ -138,75 +163,4 @@ if (file_exists(__DIR__ . '/groups/layouts/app.php')) {
  */
 Route::get('/', function () {
     return view('layouts.app');
-});
-
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-
-// GET temporário p/ teste via celular (token obrigatório)
-Route::get('/_internal/spin/start', function () {
-    $token = (string) request()->query('token', '');
-    $expected = (string) env('QUEUE_TEST_TOKEN', '');
-
-    if ($expected === '' || !hash_equals($expected, $token)) {
-        abort(404);
-    }
-
-    // parâmetros via querystring (mais fácil no celular)
-    $provider  = (string) request()->query('provider', 'demo');
-    $game_code = (string) request()->query('game_code', 'demo_game');
-
-    // gera request_id
-    $requestId = (string) Str::uuid();
-
-    // Salva numa tabela EXISTENTE do seu projeto: spin_runs
-    // (você tem Model SpinRuns.php e provavelmente tabela spin_runs)
-    // Se der erro aqui, me mande o schema da tabela spin_runs.
-    DB::table('spin_runs')->insert([
-        'request_id' => $requestId,
-        'provider' => $provider,
-        'game_code' => $game_code,
-        'status' => 'queued',
-        'result' => null,
-        'created_at' => now(),
-        'updated_at' => now(),
-    ]);
-
-    // Despacha job (se você tiver um Job específico, substitui aqui)
-    // Por enquanto, vamos só logar para confirmar fluxo
-    Log::info('SPIN_START: criado', ['request_id' => $requestId, 'provider' => $provider, 'game_code' => $game_code]);
-
-    return response()->json([
-        'ok' => true,
-        'request_id' => $requestId,
-        'status' => 'queued',
-        'provider' => $provider,
-        'game_code' => $game_code,
-        'ts' => now()->toDateTimeString(),
-    ]);
-});
-
-// Consultar status pelo request_id
-Route::get('/_internal/spin/status/{request_id}', function (string $request_id) {
-    $token = (string) request()->query('token', '');
-    $expected = (string) env('QUEUE_TEST_TOKEN', '');
-
-    if ($expected === '' || !hash_equals($expected, $token)) {
-        abort(404);
-    }
-
-    $row = DB::table('spin_runs')->where('request_id', $request_id)->first();
-
-    if (!$row) {
-        return response()->json(['ok' => false, 'error' => 'not_found'], 404);
-    }
-
-    return response()->json([
-        'ok' => true,
-        'request_id' => $row->request_id,
-        'status' => $row->status,
-        'result' => $row->result,
-        'updated_at' => (string) $row->updated_at,
-    ]);
 });
