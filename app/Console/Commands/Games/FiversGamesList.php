@@ -4,30 +4,41 @@ namespace App\Console\Commands\Games;
 
 use App\Traits\Commands\Games\FiversGamesCommandTrait;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Artisan;
 
 class FiversGamesList extends Command
 {
     use FiversGamesCommandTrait;
 
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'fivers:games-list';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Command description';
+    protected $description = 'Lista/Importa jogos do provedor Fivers e limpa cache de jogos ao finalizar';
 
-    /**
-     * Execute the console command.
-     */
-    public function handle()
+    public function handle(): int
     {
-        return self::getGames();
+        try {
+            $result = self::getGames();
+
+            // Limpa cache de jogos após importar
+            try {
+                Artisan::call('games:cache-clear');
+                $this->info('Cache de jogos limpo com sucesso.');
+            } catch (\Throwable $e) {
+                // Não quebra a importação se cache falhar
+                $this->warn('Falha ao limpar cache (continuando): ' . $e->getMessage());
+            }
+
+            $this->info('Comando Fivers finalizado com sucesso.');
+
+            // Se o trait retornar um int, respeita; senão, sucesso
+            if (is_int($result)) {
+                return $result;
+            }
+
+            return Command::SUCCESS;
+        } catch (\Throwable $e) {
+            $this->error('Erro ao importar/listar jogos Fivers: ' . $e->getMessage());
+            return Command::FAILURE;
+        }
     }
 }
