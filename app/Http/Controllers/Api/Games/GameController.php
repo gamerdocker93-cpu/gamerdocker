@@ -20,6 +20,7 @@ use App\Traits\Providers\VeniXTrait;
 use App\Traits\Providers\VibraTrait;
 use App\Traits\Providers\WorldSlotTrait;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class GameController extends Controller
 {
@@ -34,18 +35,39 @@ class GameController extends Controller
         VenixCGTrait;
 
     /**
+     * CACHE TTL (segundos)
+     */
+    private int $cacheTtl = 60;
+
+    /**
+     * Cache tags (se o driver suportar). Se não suportar, cai no fallback sem tags.
+     */
+    private function cacheRemember(string $key, int $ttl, \Closure $callback)
+    {
+        try {
+            return Cache::tags(['games'])->remember($key, $ttl, $callback);
+        } catch (\Throwable $e) {
+            return Cache::remember($key, $ttl, $callback);
+        }
+    }
+
+    /**
      * @dev venixplataformas
      * Display a listing of the resource.
      */
     public function index()
     {
-        $providers = Provider::with(['games', 'games.provider'])
-            ->whereHas('games')
-            ->orderBy('name', 'desc')
-            ->where('status', 1)
-            ->get();
+        $key = 'api:games:index:v1';
 
-        return response()->json(['providers' =>$providers]);
+        return $this->cacheRemember($key, $this->cacheTtl, function () {
+            $providers = Provider::with(['games', 'games.provider'])
+                ->whereHas('games')
+                ->orderBy('name', 'desc')
+                ->where('status', 1)
+                ->get();
+
+            return response()->json(['providers' => $providers]);
+        });
     }
 
     /**
@@ -54,12 +76,16 @@ class GameController extends Controller
      */
     public function featured()
     {
-        $featured_games = Game::with(['provider'])
-                    ->where('is_featured', 1)
-                    ->where('status', 1)
-                    ->get();
+        $key = 'api:games:featured:v1';
 
-        return response()->json(['featured_games' => $featured_games]);
+        return $this->cacheRemember($key, $this->cacheTtl, function () {
+            $featured_games = Game::with(['provider'])
+                ->where('is_featured', 1)
+                ->where('status', 1)
+                ->get();
+
+            return response()->json(['featured_games' => $featured_games]);
+        });
     }
 
     /**
@@ -77,10 +103,9 @@ class GameController extends Controller
         $validEndpoints = ['session', 'icons', 'spin', 'freenum'];
 
         if (in_array($action, $validEndpoints)) {
-            if(isset($tokenOpen['status']) && $tokenOpen['status'])
-            {
+            if (isset($tokenOpen['status']) && $tokenOpen['status']) {
                 $game = Game::whereStatus(1)->where('game_code', $tokenOpen['game'])->first();
-                if(!empty($game)) {
+                if (!empty($game)) {
                     $controller = \Helper::createController($game->game_code);
 
                     switch ($action) {
@@ -106,19 +131,19 @@ class GameController extends Controller
      */
     public function toggleFavorite($id)
     {
-        if(auth('api')->check()) {
+        if (auth('api')->check()) {
             $checkExist = GameFavorite::where('user_id', auth('api')->id())->where('game_id', $id)->first();
-            if(!empty($checkExist)) {
-                if($checkExist->delete()) {
+            if (!empty($checkExist)) {
+                if ($checkExist->delete()) {
                     return response()->json(['status' => true, 'message' => 'Removido com sucesso']);
                 }
-            }else{
+            } else {
                 $gameFavoriteCreate = GameFavorite::create([
                     'user_id' => auth('api')->id(),
                     'game_id' => $id
                 ]);
 
-                if($gameFavoriteCreate) {
+                if ($gameFavoriteCreate) {
                     return response()->json(['status' => true, 'message' => 'Criado com sucesso']);
                 }
             }
@@ -131,19 +156,19 @@ class GameController extends Controller
      */
     public function toggleLike($id)
     {
-        if(auth('api')->check()) {
+        if (auth('api')->check()) {
             $checkExist = GameLike::where('user_id', auth('api')->id())->where('game_id', $id)->first();
-            if(!empty($checkExist)) {
-                if($checkExist->delete()) {
+            if (!empty($checkExist)) {
+                if ($checkExist->delete()) {
                     return response()->json(['status' => true, 'message' => 'Removido com sucesso']);
                 }
-            }else{
+            } else {
                 $gameLikeCreate = GameLike::create([
                     'user_id' => auth('api')->id(),
                     'game_id' => $id
                 ]);
 
-                if($gameLikeCreate) {
+                if ($gameLikeCreate) {
                     return response()->json(['status' => true, 'message' => 'Criado com sucesso']);
                 }
             }
@@ -156,11 +181,12 @@ class GameController extends Controller
      */
     public function show(string $id)
     {
+        // NÃO cacheia porque incrementa views e precisa validar saldo/token
         $game = Game::with(['categories', 'provider'])->whereStatus(1)->find($id);
-        if(!empty($game)) {
-            if(auth('api')->check()) {
+        if (!empty($game)) {
+            if (auth('api')->check()) {
                 $wallet = Wallet::where('user_id', auth('api')->id())->first();
-                if($wallet->total_balance > 0) {
+                if ($wallet && $wallet->total_balance > 0) {
                     $game->increment('views');
 
                     $token = \Helper::MakeToken([
@@ -172,30 +198,30 @@ class GameController extends Controller
                         case 'source':
                             return response()->json([
                                 'game' => $game,
-                                'gameUrl' => url('/originals/'.$game->game_code.'/index.html?token='.$token),
+                                'gameUrl' => url('/originals/' . $game->game_code . '/index.html?token=' . $token),
                                 'token' => $token
                             ]);
                         case 'venixcg':
                             $gameLauncher = self::GameLaunchVenixCG($game);
-                            if($gameLauncher) {
+                            if ($gameLauncher) {
                                 return response()->json([
                                     'game' => $game,
                                     'gameUrl' => $gameLauncher,
                                     'token' => $token
                                 ]);
-                            }else{
+                            } else {
                                 return response()->json();
                             }
                         case 'playgaming':
                             $gameLauncher = self::LaunchGamePlayGaming($game->game_id);
 
-                            if($gameLauncher) {
+                            if ($gameLauncher) {
                                 return response()->json([
                                     'game' => $game,
                                     'gameUrl' => $gameLauncher,
                                     'token' => $token
                                 ]);
-                            }else{
+                            } else {
                                 return response()->json();
                             }
                         case 'salsa':
@@ -207,12 +233,12 @@ class GameController extends Controller
                         case 'evergame':
                             $evergameLaunch = self::GameLaunchEvergame($game->provider->code, $game->game_id, 'pt', auth('api')->id());
 
-                            if(isset($evergameLaunch['launchUrl'])) {
+                            if (isset($evergameLaunch['launchUrl'])) {
                                 return response()->json([
                                     'game' => $game,
                                     'gameUrl' => $evergameLaunch['launchUrl'],
                                 ]);
-                            }else{
+                            } else {
                                 return response()->json($evergameLaunch);
                             }
                         case 'vibra_gaming':
@@ -224,7 +250,7 @@ class GameController extends Controller
                         case 'fivers':
                             $fiversLaunch = self::GameLaunchFivers($game->provider->code, $game->game_id, 'pt', auth('api')->id());
 
-                            if(isset($fiversLaunch['launch_url'])) {
+                            if (isset($fiversLaunch['launch_url'])) {
                                 return response()->json([
                                     'game' => $game,
                                     'gameUrl' => $fiversLaunch['launch_url'],
@@ -232,11 +258,11 @@ class GameController extends Controller
                                 ]);
                             }
 
-                            return response()->json(['error' => $fiversLaunch, 'status' => false ], 400);
+                            return response()->json(['error' => $fiversLaunch, 'status' => false], 400);
                         case 'games2_api':
                             $games2ApiLaunch = self::GameLaunchGames2($game->provider->code, $game->game_id, 'pt', auth('api')->id());
 
-                            if(isset($games2ApiLaunch['launch_url'])) {
+                            if (isset($games2ApiLaunch['launch_url'])) {
                                 return response()->json([
                                     'game' => $game,
                                     'gameUrl' => $games2ApiLaunch['launch_url'],
@@ -244,11 +270,11 @@ class GameController extends Controller
                                 ]);
                             }
 
-                            return response()->json(['error' => $games2ApiLaunch, 'status' => false ], 400);
+                            return response()->json(['error' => $games2ApiLaunch, 'status' => false], 400);
                         case 'worldslot':
                             $worldslotLaunch = self::GameLaunchWorldSlot($game->provider->code, $game->game_id, 'pt', auth('api')->id());
 
-                            if(isset($worldslotLaunch['launch_url'])) {
+                            if (isset($worldslotLaunch['launch_url'])) {
                                 return response()->json([
                                     'game' => $game,
                                     'gameUrl' => $worldslotLaunch['launch_url'],
@@ -256,15 +282,14 @@ class GameController extends Controller
                                 ]);
                             }
 
-                            return response()->json(['error' => $worldslotLaunch, 'status' => false ], 400);
-
+                            return response()->json(['error' => $worldslotLaunch, 'status' => false], 400);
                     }
                 }
-                return response()->json(['error' => 'Você precisa ter saldo para jogar', 'status' => false, 'action' => 'deposit' ], 200);
+                return response()->json(['error' => 'Você precisa ter saldo para jogar', 'status' => false, 'action' => 'deposit'], 200);
             }
-            return response()->json(['error' => 'Você precisa tá autenticado para jogar', 'status' => false ], 400);
+            return response()->json(['error' => 'Você precisa tá autenticado para jogar', 'status' => false], 400);
         }
-        return response()->json(['error' => '', 'status' => false ], 400);
+        return response()->json(['error' => '', 'status' => false], 400);
     }
 
     /**
@@ -273,30 +298,49 @@ class GameController extends Controller
      */
     public function allGames(Request $request)
     {
-        $query = Game::query();
-        $query->with(['provider', 'categories']);
+        $provider = !empty($request->provider) ? (string) $request->provider : 'all';
+        $category = !empty($request->category) ? (string) $request->category : 'all';
+        $search   = isset($request->searchTerm) ? (string) $request->searchTerm : '';
+        $page     = (int) ($request->query('page', 1));
 
-        if (!empty($request->provider) && $request->provider != 'all') {
-            $query->where('provider_id', $request->provider);
-        }
+        $key = 'api:games:allGames:v2:' . md5(
+            'p=' . $provider .
+            '|c=' . $category .
+            '|s=' . mb_strtolower(trim($search)) .
+            '|page=' . $page
+        );
 
-        if (!empty($request->category) && $request->category != 'all') {
-            $query->whereHas('categories', function ($categoryQuery) use ($request) {
-                $categoryQuery->where('slug', $request->category);
-            });
-        }
+        return $this->cacheRemember($key, $this->cacheTtl, function () use ($request) {
 
-        if (isset($request->searchTerm) && !empty($request->searchTerm) && strlen($request->searchTerm) > 2) {
-            $query->whereLike(['game_code', 'game_name', 'description', 'distribution', 'provider.name'], $request->searchTerm);
-        }else{
-            $query->orderBy('views', 'desc');
-        }
+            $query = Game::query();
+            $query->with(['provider', 'categories']);
 
-        $games = $query
-            ->where('status', 1)
-            ->paginate(12)->appends(request()->query());
+            if (!empty($request->provider) && $request->provider != 'all') {
+                $query->where('provider_id', $request->provider);
+            }
 
-        return response()->json(['games' => $games]);
+            if (!empty($request->category) && $request->category != 'all') {
+                $query->whereHas('categories', function ($categoryQuery) use ($request) {
+                    $categoryQuery->where('slug', $request->category);
+                });
+            }
+
+            if (isset($request->searchTerm) && !empty($request->searchTerm) && strlen($request->searchTerm) > 2) {
+                $query->whereLike(
+                    ['game_code', 'game_name', 'description', 'distribution', 'provider.name'],
+                    $request->searchTerm
+                );
+            } else {
+                $query->orderBy('views', 'desc');
+            }
+
+            $games = $query
+                ->where('status', 1)
+                ->paginate(12)
+                ->appends(request()->query());
+
+            return response()->json(['games' => $games]);
+        });
     }
 
     /**
