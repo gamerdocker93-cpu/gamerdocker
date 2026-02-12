@@ -8,8 +8,10 @@ use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
 class Kernel extends ConsoleKernel
 {
-    /**
+    /*
      * Registra comandos manualmente (garante que existam no php artisan).
+     * Mantive os seus e adicionei os comandos de provedores (Games/*)
+     * para não dar "Command not found" no Railway.
      */
     protected $commands = [
         \App\Console\Commands\TempAdminCreate::class,
@@ -18,9 +20,32 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\SpinConfigsInit::class,
         \App\Console\Commands\DemoSeedIfEmpty::class,
         \App\Console\Commands\GamesCacheClear::class,
+
+        /*
+         * Comandos de provedores (Games)
+         * Se algum não existir no seu repo, remova só a linha dele.
+         */
+        \App\Console\Commands\Games\EverGamesList::class,
+        \App\Console\Commands\Games\EverProviderList::class,
+
+        \App\Console\Commands\Games\FiversGamesList::class,
+        \App\Console\Commands\Games\FiversProviderList::class,
+
+        \App\Console\Commands\Games\Games2ApiList::class,
+        \App\Console\Commands\Games\Games2ApiProviderList::class,
+
+        \App\Console\Commands\Games\PlayGamingGamesList::class,
+
+        \App\Console\Commands\Games\SalsaGameList::class,
+
+        \App\Console\Commands\Games\VenixGamesList::class,
+        \App\Console\Commands\Games\VenixProviderList::class,
+
+        \App\Console\Commands\Games\WorldSlotGamesList::class,
+        \App\Console\Commands\Games\WorldSlotProviderList::class,
     ];
 
-    /**
+    /*
      * Define the application's command schedule.
      */
     protected function schedule(Schedule $schedule): void
@@ -31,7 +56,7 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping(5);
     }
 
-    /**
+    /*
      * Register the commands for the application.
      */
     protected function commands(): void
