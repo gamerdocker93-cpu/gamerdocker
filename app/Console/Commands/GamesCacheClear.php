@@ -8,23 +8,29 @@ use Illuminate\Support\Facades\Cache;
 class GamesCacheClear extends Command
 {
     protected $signature = 'games:cache-clear';
-    protected $description = 'Limpa cache relacionado a games (usa tags se suportar, senão flush)';
+    protected $description = 'Limpa cache relacionado a jogos (por tag se suportado, senão flush)';
 
     public function handle(): int
     {
+        $clearedByTag = false;
+
         try {
             Cache::tags(['games'])->flush();
-            $this->info('Cache games limpo (tags).');
-            return Command::SUCCESS;
+            $clearedByTag = true;
         } catch (\Throwable $e) {
+            // Driver não suporta tags (ex: file) ou falhou: cai no fallback
+        }
+
+        if (!$clearedByTag) {
             try {
                 Cache::flush();
-                $this->warn('Cache games limpo (flush total, driver sem tags).');
-                return Command::SUCCESS;
-            } catch (\Throwable $e2) {
-                $this->error('Falha ao limpar cache: ' . $e2->getMessage());
+            } catch (\Throwable $e) {
+                $this->error('Falha ao limpar cache: ' . $e->getMessage());
                 return Command::FAILURE;
             }
         }
+
+        $this->info($clearedByTag ? 'Cache de jogos limpo por tags.' : 'Cache limpo com flush (sem tags).');
+        return Command::SUCCESS;
     }
 }
