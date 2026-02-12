@@ -17,6 +17,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\GamesKeysInit::class,
         \App\Console\Commands\SpinConfigsInit::class,
         \App\Console\Commands\DemoSeedIfEmpty::class,
+        \App\Console\Commands\GamesCacheClear::class,
     ];
 
     /**
