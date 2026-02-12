@@ -6,13 +6,17 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use App\Jobs\TestQueueJob;
+use App\Http\Controllers\HealthController;
 
 /**
- * Healthcheck simples
+ * Healthcheck público (Railway deve usar este)
  */
-Route::get('/health', function () {
-    return response()->json(['ok' => true]);
-});
+Route::get('/health', [HealthController::class, 'health']);
+
+/**
+ * Healthcheck DB público (pra você testar no navegador)
+ */
+Route::get('/health/db', [HealthController::class, 'healthDb']);
 
 /**
  * Helper: valida token em modo "stealth" (404 se errado)
