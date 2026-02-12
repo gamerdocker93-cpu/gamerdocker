@@ -27,8 +27,7 @@ class Kernel extends ConsoleKernel
         $schedule->job(new ProcessAutoWithdrawal)
             ->everyMinute()
             ->name('process-auto-withdrawal')
-            ->withoutOverlapping(5)
-            ->runInBackground();
+            ->withoutOverlapping(5);
     }
 
     /**
