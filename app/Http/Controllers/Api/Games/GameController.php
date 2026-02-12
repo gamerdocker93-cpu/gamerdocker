@@ -36,11 +36,12 @@ class GameController extends Controller
 
     /**
      * CACHE TTL (segundos)
+     * Seguro: 60s (pode aumentar depois)
      */
     private int $cacheTtl = 60;
 
     /**
-     * Cache tags (se o driver suportar). Se não suportar, cai no fallback sem tags.
+     * Cache com tags (se suportar). Se não suportar, fallback sem tags.
      */
     private function cacheRemember(string $key, int $ttl, \Closure $callback)
     {
@@ -52,18 +53,33 @@ class GameController extends Controller
     }
 
     /**
+     * Monta chave de cache estável e curta.
+     */
+    private function makeCacheKey(string $prefix, array $parts): string
+    {
+        $normalized = [];
+        foreach ($parts as $k => $v) {
+            if (is_string($v)) {
+                $v = trim(mb_strtolower($v));
+            }
+            $normalized[] = $k . '=' . (string) $v;
+        }
+        return $prefix . ':' . md5(implode('|', $normalized));
+    }
+
+    /**
      * @dev venixplataformas
      * Display a listing of the resource.
      */
     public function index()
     {
-        $key = 'api:games:index:v1';
+        $key = 'api:games:index:v2';
 
         return $this->cacheRemember($key, $this->cacheTtl, function () {
             $providers = Provider::with(['games', 'games.provider'])
                 ->whereHas('games')
-                ->orderBy('name', 'desc')
                 ->where('status', 1)
+                ->orderBy('name', 'desc')
                 ->get();
 
             return response()->json(['providers' => $providers]);
@@ -76,7 +92,7 @@ class GameController extends Controller
      */
     public function featured()
     {
-        $key = 'api:games:featured:v1';
+        $key = 'api:games:featured:v2';
 
         return $this->cacheRemember($key, $this->cacheTtl, function () {
             $featured_games = Game::with(['provider'])
@@ -90,44 +106,39 @@ class GameController extends Controller
 
     /**
      * Source Provider
-     *
-     * @dev venixplataformas
-     * @param Request $request
-     * @param $token
-     * @param $action
-     * @return \Illuminate\Http\JsonResponse|void
      */
     public function sourceProvider(Request $request, $token, $action)
     {
         $tokenOpen = \Helper::DecToken($token);
         $validEndpoints = ['session', 'icons', 'spin', 'freenum'];
 
-        if (in_array($action, $validEndpoints)) {
-            if (isset($tokenOpen['status']) && $tokenOpen['status']) {
-                $game = Game::whereStatus(1)->where('game_code', $tokenOpen['game'])->first();
-                if (!empty($game)) {
-                    $controller = \Helper::createController($game->game_code);
-
-                    switch ($action) {
-                        case 'session':
-                            return $controller->session($token);
-                        case 'spin':
-                            return $controller->spin($request, $token);
-                        case 'freenum':
-                            return $controller->freenum($request, $token);
-                        case 'icons':
-                            return $controller->icons();
-                    }
-                }
-            }
-        } else {
+        if (!in_array($action, $validEndpoints)) {
             return response()->json([], 500);
         }
+
+        if (isset($tokenOpen['status']) && $tokenOpen['status']) {
+            $game = Game::whereStatus(1)->where('game_code', $tokenOpen['game'])->first();
+            if (!empty($game)) {
+                $controller = \Helper::createController($game->game_code);
+
+                switch ($action) {
+                    case 'session':
+                        return $controller->session($token);
+                    case 'spin':
+                        return $controller->spin($request, $token);
+                    case 'freenum':
+                        return $controller->freenum($request, $token);
+                    case 'icons':
+                        return $controller->icons();
+                }
+            }
+        }
+
+        return response()->json([], 500);
     }
 
     /**
-     * @dev venixplataformas
-     * Store a newly created resource in storage.
+     * Favorite
      */
     public function toggleFavorite($id)
     {
@@ -151,8 +162,7 @@ class GameController extends Controller
     }
 
     /**
-     * @dev venixplataformas
-     * Store a newly created resource in storage.
+     * Like
      */
     public function toggleLike($id)
     {
@@ -176,152 +186,155 @@ class GameController extends Controller
     }
 
     /**
-     * @dev venixplataformas
-     * Display the specified resource.
+     * Show game
+     * NÃO cacheia (views, saldo, token)
      */
     public function show(string $id)
     {
-        // NÃO cacheia porque incrementa views e precisa validar saldo/token
         $game = Game::with(['categories', 'provider'])->whereStatus(1)->find($id);
-        if (!empty($game)) {
-            if (auth('api')->check()) {
-                $wallet = Wallet::where('user_id', auth('api')->id())->first();
-                if ($wallet && $wallet->total_balance > 0) {
-                    $game->increment('views');
 
-                    $token = \Helper::MakeToken([
-                        'id' => auth('api')->id(),
-                        'game' => $game->game_code
-                    ]);
+        if (empty($game)) {
+            return response()->json(['error' => '', 'status' => false], 400);
+        }
 
-                    switch ($game->distribution) {
-                        case 'source':
-                            return response()->json([
-                                'game' => $game,
-                                'gameUrl' => url('/originals/' . $game->game_code . '/index.html?token=' . $token),
-                                'token' => $token
-                            ]);
-                        case 'venixcg':
-                            $gameLauncher = self::GameLaunchVenixCG($game);
-                            if ($gameLauncher) {
-                                return response()->json([
-                                    'game' => $game,
-                                    'gameUrl' => $gameLauncher,
-                                    'token' => $token
-                                ]);
-                            } else {
-                                return response()->json();
-                            }
-                        case 'playgaming':
-                            $gameLauncher = self::LaunchGamePlayGaming($game->game_id);
-
-                            if ($gameLauncher) {
-                                return response()->json([
-                                    'game' => $game,
-                                    'gameUrl' => $gameLauncher,
-                                    'token' => $token
-                                ]);
-                            } else {
-                                return response()->json();
-                            }
-                        case 'salsa':
-                            return response()->json([
-                                'game' => $game,
-                                'gameUrl' => self::playGameSalsa('CHARGED', 'BRL', 'pt', $game->game_id),
-                                'token' => $token
-                            ]);
-                        case 'evergame':
-                            $evergameLaunch = self::GameLaunchEvergame($game->provider->code, $game->game_id, 'pt', auth('api')->id());
-
-                            if (isset($evergameLaunch['launchUrl'])) {
-                                return response()->json([
-                                    'game' => $game,
-                                    'gameUrl' => $evergameLaunch['launchUrl'],
-                                ]);
-                            } else {
-                                return response()->json($evergameLaunch);
-                            }
-                        case 'vibra_gaming':
-                            return response()->json([
-                                'game' => $game,
-                                'gameUrl' => self::GenerateGameLaunch($game),
-                                'token' => $token
-                            ]);
-                        case 'fivers':
-                            $fiversLaunch = self::GameLaunchFivers($game->provider->code, $game->game_id, 'pt', auth('api')->id());
-
-                            if (isset($fiversLaunch['launch_url'])) {
-                                return response()->json([
-                                    'game' => $game,
-                                    'gameUrl' => $fiversLaunch['launch_url'],
-                                    'token' => $token
-                                ]);
-                            }
-
-                            return response()->json(['error' => $fiversLaunch, 'status' => false], 400);
-                        case 'games2_api':
-                            $games2ApiLaunch = self::GameLaunchGames2($game->provider->code, $game->game_id, 'pt', auth('api')->id());
-
-                            if (isset($games2ApiLaunch['launch_url'])) {
-                                return response()->json([
-                                    'game' => $game,
-                                    'gameUrl' => $games2ApiLaunch['launch_url'],
-                                    'token' => $token
-                                ]);
-                            }
-
-                            return response()->json(['error' => $games2ApiLaunch, 'status' => false], 400);
-                        case 'worldslot':
-                            $worldslotLaunch = self::GameLaunchWorldSlot($game->provider->code, $game->game_id, 'pt', auth('api')->id());
-
-                            if (isset($worldslotLaunch['launch_url'])) {
-                                return response()->json([
-                                    'game' => $game,
-                                    'gameUrl' => $worldslotLaunch['launch_url'],
-                                    'token' => $token
-                                ]);
-                            }
-
-                            return response()->json(['error' => $worldslotLaunch, 'status' => false], 400);
-                    }
-                }
-                return response()->json(['error' => 'Você precisa ter saldo para jogar', 'status' => false, 'action' => 'deposit'], 200);
-            }
+        if (!auth('api')->check()) {
             return response()->json(['error' => 'Você precisa tá autenticado para jogar', 'status' => false], 400);
         }
+
+        $wallet = Wallet::where('user_id', auth('api')->id())->first();
+        if (!$wallet || $wallet->total_balance <= 0) {
+            return response()->json(['error' => 'Você precisa ter saldo para jogar', 'status' => false, 'action' => 'deposit'], 200);
+        }
+
+        $game->increment('views');
+
+        $token = \Helper::MakeToken([
+            'id' => auth('api')->id(),
+            'game' => $game->game_code
+        ]);
+
+        switch ($game->distribution) {
+            case 'source':
+                return response()->json([
+                    'game' => $game,
+                    'gameUrl' => url('/originals/' . $game->game_code . '/index.html?token=' . $token),
+                    'token' => $token
+                ]);
+
+            case 'venixcg':
+                $gameLauncher = self::GameLaunchVenixCG($game);
+                if ($gameLauncher) {
+                    return response()->json([
+                        'game' => $game,
+                        'gameUrl' => $gameLauncher,
+                        'token' => $token
+                    ]);
+                }
+                return response()->json();
+
+            case 'playgaming':
+                $gameLauncher = self::LaunchGamePlayGaming($game->game_id);
+                if ($gameLauncher) {
+                    return response()->json([
+                        'game' => $game,
+                        'gameUrl' => $gameLauncher,
+                        'token' => $token
+                    ]);
+                }
+                return response()->json();
+
+            case 'salsa':
+                return response()->json([
+                    'game' => $game,
+                    'gameUrl' => self::playGameSalsa('CHARGED', 'BRL', 'pt', $game->game_id),
+                    'token' => $token
+                ]);
+
+            case 'evergame':
+                $evergameLaunch = self::GameLaunchEvergame($game->provider->code, $game->game_id, 'pt', auth('api')->id());
+                if (isset($evergameLaunch['launchUrl'])) {
+                    return response()->json([
+                        'game' => $game,
+                        'gameUrl' => $evergameLaunch['launchUrl'],
+                    ]);
+                }
+                return response()->json($evergameLaunch);
+
+            case 'vibra_gaming':
+                return response()->json([
+                    'game' => $game,
+                    'gameUrl' => self::GenerateGameLaunch($game),
+                    'token' => $token
+                ]);
+
+            case 'fivers':
+                $fiversLaunch = self::GameLaunchFivers($game->provider->code, $game->game_id, 'pt', auth('api')->id());
+                if (isset($fiversLaunch['launch_url'])) {
+                    return response()->json([
+                        'game' => $game,
+                        'gameUrl' => $fiversLaunch['launch_url'],
+                        'token' => $token
+                    ]);
+                }
+                return response()->json(['error' => $fiversLaunch, 'status' => false], 400);
+
+            case 'games2_api':
+                $games2ApiLaunch = self::GameLaunchGames2($game->provider->code, $game->game_id, 'pt', auth('api')->id());
+                if (isset($games2ApiLaunch['launch_url'])) {
+                    return response()->json([
+                        'game' => $game,
+                        'gameUrl' => $games2ApiLaunch['launch_url'],
+                        'token' => $token
+                    ]);
+                }
+                return response()->json(['error' => $games2ApiLaunch, 'status' => false], 400);
+
+            case 'worldslot':
+                $worldslotLaunch = self::GameLaunchWorldSlot($game->provider->code, $game->game_id, 'pt', auth('api')->id());
+                if (isset($worldslotLaunch['launch_url'])) {
+                    return response()->json([
+                        'game' => $game,
+                        'gameUrl' => $worldslotLaunch['launch_url'],
+                        'token' => $token
+                    ]);
+                }
+                return response()->json(['error' => $worldslotLaunch, 'status' => false], 400);
+        }
+
         return response()->json(['error' => '', 'status' => false], 400);
     }
 
     /**
-     * @dev venixplataformas
-     * Show the form for editing the specified resource.
+     * Listagem (cache por page, provider, category, search)
+     * Seguro e robusto: funciona com cache driver sem tags.
      */
     public function allGames(Request $request)
     {
-        $provider = !empty($request->provider) ? (string) $request->provider : 'all';
-        $category = !empty($request->category) ? (string) $request->category : 'all';
-        $search   = isset($request->searchTerm) ? (string) $request->searchTerm : '';
-        $page     = (int) ($request->query('page', 1));
+        $provider = (string) $request->query('provider', 'all');
+        $category = (string) $request->query('category', 'all');
+        $search   = (string) $request->query('searchTerm', '');
+        $page     = (int) $request->query('page', 1);
 
-        $key = 'api:games:allGames:v2:' . md5(
-            'p=' . $provider .
-            '|c=' . $category .
-            '|s=' . mb_strtolower(trim($search)) .
-            '|page=' . $page
-        );
+        $key = $this->makeCacheKey('api:games:allGames:v3', [
+            'provider' => $provider,
+            'category' => $category,
+            'search' => $search,
+            'page' => $page,
+        ]);
 
         return $this->cacheRemember($key, $this->cacheTtl, function () use ($request) {
 
-            $query = Game::query();
-            $query->with(['provider', 'categories']);
+            $query = Game::query()
+                ->with(['provider', 'categories'])
+                ->where('status', 1);
 
             if (!empty($request->provider) && $request->provider != 'all') {
                 $query->where('provider_id', $request->provider);
             }
 
             if (!empty($request->category) && $request->category != 'all') {
-                $query->whereHas('categories', function ($categoryQuery) use ($request) {
-                    $categoryQuery->where('slug', $request->category);
+                $query->whereHas('categories', function ($q) use ($request) {
+                    $q->where('slug', $request->category);
                 });
             }
 
@@ -335,7 +348,6 @@ class GameController extends Controller
             }
 
             $games = $query
-                ->where('status', 1)
                 ->paginate(12)
                 ->appends(request()->query());
 
@@ -343,94 +355,51 @@ class GameController extends Controller
         });
     }
 
-    /**
-     * @dev venixplataformas
-     * Update the specified resource in storage.
-     */
     public function webhookGoldApiMethod(Request $request)
     {
         return self::WebhooksFivers($request);
     }
 
-    /**
-     * @dev venixplataformas
-     * Update the specified resource in storage.
-     */
     public function webhookUserBalanceMethod(Request $request)
     {
         return self::GetUserBalanceWorldSlot($request);
     }
 
-    /**
-     * @dev venixplataformas
-     * Update the specified resource in storage.
-     */
     public function webhookGameCallbackMethod(Request $request)
     {
         return self::GameCallbackWorldSlot($request);
     }
 
-    /**
-     * @dev venixplataformas
-     * Update the specified resource in storage.
-     */
     public function webhookMoneyCallbackMethod(Request $request)
     {
         return self::MoneyCallbackWorldSlot($request);
     }
 
-    /**
-     * Webhook Vibra Method
-     *
-     * @param Request $request
-     * @param $parameters
-     * @return array|\Illuminate\Http\JsonResponse|null
-     */
     public function webhookVibraMethod(Request $request, $parameters)
     {
         return self::WebhookVibra($request, $parameters);
     }
 
-    /**
-     * @param Request $request
-     * @return null
-     */
     public function webhookKaGamingMethod(Request $request)
     {
         return self::WebhookKaGaming($request);
     }
 
-    /**
-     * @param Request $request
-     * @return null
-     */
     public function webhookSalsaMethod(Request $request)
     {
         return self::webhookSalsa($request);
     }
 
-    /**
-     * @param Request $request
-     * @return mixed
-     */
     public function webhookVeniXMethod(Request $request)
     {
         return self::WebhookVenixCG($request);
     }
 
-    /**
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse|null
-     */
     public function webhookEvergameMethod(Request $request)
     {
         return self::WebhooksEvergame($request);
     }
 
-    /**
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse|null
-     */
     public function webhookPlayGamingMethod(Request $request)
     {
         return self::WebhooksPlayGaming($request);
