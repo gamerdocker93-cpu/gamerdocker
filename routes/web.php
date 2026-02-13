@@ -47,7 +47,9 @@ if (!function_exists('_internalTokenOr404')) {
 if ($internalEnabled) {
 
     /**
-     * Lista os schedules registrados no Laravel
+     * Lista os schedules registrados no Laravel (o que o schedule:work vai executar)
+     *
+     * Use:
      * /_internal/schedule/list?token=SEU_TOKEN
      */
     Route::get('/_internal/schedule/list', function (Request $request) {
@@ -58,9 +60,12 @@ if ($internalEnabled) {
             $schedule = app(Schedule::class);
 
             $events = collect($schedule->events())->map(function ($event) {
+                // Alguns campos podem não existir dependendo da versão/driver (job vs command)
+                $expression = property_exists($event, 'expression') ? $event->expression : (method_exists($event, 'expression') ? $event->expression() : null);
+
                 return [
                     'description' => (string) ($event->description ?? ''),
-                    'expression'  => (string) ($event->expression ?? ''),
+                    'expression'  => (string) ($expression ?? ''),
                     'timezone'    => (string) ($event->timezone ?? ''),
                     'command'     => (string) ($event->command ?? ''),
                     'output'      => (string) ($event->output ?? ''),
@@ -87,9 +92,12 @@ if ($internalEnabled) {
     });
 
     /**
-     * Lista comandos Artisan disponíveis
+     * Lista comandos Artisan disponíveis (para auditar)
+     *
+     * Use:
      * /_internal/artisan/commands?token=SEU_TOKEN
      * /_internal/artisan/commands?token=SEU_TOKEN&q=fivers
+     * /_internal/artisan/commands?token=SEU_TOKEN&q=games
      */
     Route::get('/_internal/artisan/commands', function (Request $request) {
         _internalTokenOr404($request);
@@ -97,16 +105,15 @@ if ($internalEnabled) {
         $q = mb_strtolower(trim((string) $request->query('q', '')));
 
         try {
+            // Garante bootstrap do console para registrar comandos do Kernel
             $kernel = app(\Illuminate\Contracts\Console\Kernel::class);
             $kernel->bootstrap();
 
-            $artisan = app();
-            $all = collect($artisan->all())->keys()->values();
+            // IMPORTANTe: Artisan::all() existe; app()->all() NÃO (foi o seu erro do print)
+            $all = collect(Artisan::all())->keys()->values();
 
             if ($q !== '') {
-                $all = $all->filter(
-                    fn ($name) => str_contains(mb_strtolower((string) $name), $q)
-                )->values();
+                $all = $all->filter(fn ($name) => str_contains(mb_strtolower((string) $name), $q))->values();
             }
 
             return response()->json([
@@ -158,7 +165,7 @@ if ($internalEnabled) {
     });
 
     /**
-     * TESTE DA FILA
+     * TESTE DA FILA (não renderiza Vue)
      * /queue-test?token=SEU_TOKEN
      */
     Route::get('/queue-test', function (Request $request) {
@@ -181,6 +188,7 @@ if ($internalEnabled) {
 
     /**
      * Alias interno fila
+     * /_internal/queue/test?token=SEU_TOKEN
      */
     Route::get('/_internal/queue/test', function (Request $request) {
         _internalTokenOr404($request);
@@ -198,6 +206,7 @@ if ($internalEnabled) {
 
     /**
      * SPIN interno
+     * /_internal/spin/start?token=...&provider=demo&game_code=demo_game
      */
     Route::get('/_internal/spin/start', function (Request $request) {
         _internalTokenOr404($request);
@@ -234,10 +243,21 @@ if ($internalEnabled) {
         ]);
     });
 
+    /**
+     * /_internal/spin/status/{request_id}?token=...
+     */
     Route::get('/_internal/spin/status/{request_id}', function (Request $request, string $request_id) {
         _internalTokenOr404($request);
 
-        $row = DB::table('spin_runs')->where('request_id', $request_id)->first();
+        try {
+            $row = DB::table('spin_runs')->where('request_id', $request_id)->first();
+        } catch (\Throwable $e) {
+            return response()->json([
+                'ok' => false,
+                'error' => $e->getMessage(),
+                'ts' => now()->toDateTimeString(),
+            ], 500);
+        }
 
         if (!$row) {
             return response()->json(['ok' => false, 'error' => 'not_found'], 404);
