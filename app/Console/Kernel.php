@@ -43,6 +43,13 @@ class Kernel extends ConsoleKernel
 
         \App\Console\Commands\Games\WorldSlotGamesList::class,
         \App\Console\Commands\Games\WorldSlotProviderList::class,
+
+        /*
+         * Módulo unificado Providers (Etapa 7)
+         * (não conflita com os commands existentes)
+         */
+        \App\Console\Commands\Providers\ProvidersSync::class,
+        \App\Console\Commands\Providers\GamesSync::class,
     ];
 
     /*
