@@ -20,11 +20,14 @@ class GameProvider extends Model
     protected $casts = [
         'enabled' => 'boolean',
         'meta' => 'array',
-
-        // 🔐 importante: isso criptografa no banco automaticamente
+        
+        // 🔐 Segurança: Transforma em array e criptografa no banco automaticamente
         'credentials_json' => 'encrypted:array',
     ];
 
+    /**
+     * Auxiliar para pegar chaves específicas das credenciais
+     */
     public function creds(string $key = null, $default = null)
     {
         $arr = $this->credentials_json ?: [];
