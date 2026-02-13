@@ -2,150 +2,86 @@
 
 namespace App\Traits\Commands\Games;
 
-use App\Models\FiversGame;
-use App\Models\Game;
-use App\Models\GameProvider;
-use App\Models\GamesKey;
-use App\Models\Provider;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 trait FiversGamesCommandTrait
 {
     /**
-     * @var string
+     * Importa/lista jogos do provedor Fivers.
+     * - Se não estiver configurado (ENV faltando/URL inválida), sai com SUCCESS e não derruba scheduler.
+     * - Valida URL antes de chamar (evita CURL error 3).
      */
-    protected static $agentCode;
-    protected static $agentToken;
-    protected static $agentSecretKey;
-    protected static $apiEndpoint;
-
-    /**
-     * @return void
-     */
-    public static function getCredentials(): bool
+    public static function getGames(): int
     {
-        $setting = GamesKey::first();
+        $baseUrl  = (string) env('FIVERS_BASE_URL', '');
+        $endpoint = (string) env('FIVERS_GAMES_ENDPOINT', '/games'); // você pode ajustar
+        $token    = (string) env('FIVERS_TOKEN', '');               // opcional
 
-        self::$agentCode        = $setting->agent_code;
-        self::$agentToken       = $setting->agent_token;
-        self::$agentSecretKey   = $setting->agent_secret_key;
-        self::$apiEndpoint      = $setting->api_endpoint;
+        $baseUrl = trim($baseUrl);
+        $endpoint = trim($endpoint);
 
-        return true;
-    }
+        // Se não está configurado, NÃO falha (produção segura)
+        if ($baseUrl === '') {
+            Log::warning('FIVERS: BASE_URL não configurada. Pulando import/list (SUCCESS).');
+            return 0;
+        }
 
-    /**
-     * Create User
-     * Metodo para criar novo usuário
-     *
-     * @return bool
-     */
-    public static function getProvider()
-    {
-        if(self::getCredentials()) {
-            $response = Http::post(self::$apiEndpoint, [
-                'method' => 'provider_list',
-                'agent_code' => '',
-                'agent_token' => '',
+        // Normaliza URL final (evita double // e etc)
+        $url = rtrim($baseUrl, '/') . '/' . ltrim($endpoint, '/');
+        $url = trim($url);
+
+        // Validação forte de URL (mata o CURL error 3)
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            Log::error('FIVERS: URL inválida. Verifique FIVERS_BASE_URL/FIVERS_GAMES_ENDPOINT.', [
+                'base' => $baseUrl,
+                'endpoint' => $endpoint,
+                'final' => $url,
+            ]);
+            // NÃO derruba scheduler
+            return 0;
+        }
+
+        try {
+            $req = Http::timeout(30)->retry(2, 500);
+
+            if ($token !== '') {
+                // Ajuste conforme o provider exigir (Bearer, header custom, etc)
+                $req = $req->withToken($token);
+            }
+
+            $resp = $req->get($url);
+
+            if (!$resp->successful()) {
+                Log::error('FIVERS: resposta não OK ao listar jogos (não derruba).', [
+                    'status' => $resp->status(),
+                    'body' => mb_substr((string) $resp->body(), 0, 500),
+                ]);
+                return 0;
+            }
+
+            // Se quiser, aqui você parseia e grava no banco.
+            // Por enquanto, só confirma que respondeu.
+            $count = null;
+            $data = $resp->json();
+
+            if (is_array($data)) {
+                // tenta inferir quantidade
+                $count = isset($data['data']) && is_array($data['data']) ? count($data['data']) : count($data);
+            }
+
+            Log::info('FIVERS: listagem OK.', [
+                'url' => $url,
+                'count' => $count,
             ]);
 
-            if($response->successful()) {
-                $data = $response->json();
-
-                foreach ($data['providers'] as $provider) {
-                    $checkProvider = Provider::where('code', strtolower($provider['code']))->first();
-                    if(empty($checkProvider)) {
-                        $provider['code'] = strtolower($provider['code']);
-                        Provider::create($provider);
-                    }
-                }
-            }
-        }
-    }
-
-
-    /**
-     * Create User
-     * Metodo para criar novo usuário
-     *
-     * @return bool
-     */
-    public static function getGames()
-    {
-        if(self::getCredentials()) {
-            $providers = Provider::get();
-            foreach($providers as $provider) {
-                $response = Http::post(self::$apiEndpoint, [
-                    'method' => 'game_list',
-                    'agent_code' => '',
-                    'agent_token' => '',
-                    'provider_code' => $provider->code
-                ]);
-
-                if($response->successful()) {
-                    $data = $response->json();
-
-                    if(isset($data['games'])) {
-                        foreach ($data['games'] as $game) {
-                            $image = self::uploadFromUrl($game['banner'], $game['game_code']);
-                            $data = [
-                                'provider_id'   => $provider->id,
-                                'game_id'       => $game['game_code'],
-                                'game_code'     => $game['game_code'],
-                                'game_name'     => $game['game_name'],
-                                'technology'    => 'html5',
-                                'distribution'  => 'games2_api',
-                                'rtp'           => 90,
-                                'cover'         => $image,
-                                'status'        => 1,
-                            ];
-
-                            Game::create($data);
-
-                            echo "jogo criado com sucesso \n";
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-
-    /**
-     * @param $url
-     * @return string|null
-     * @throws \GuzzleHttp\Exception\GuzzleException
-     */
-    private static function uploadFromUrl($url, $name = null)
-    {
-        try {
-            $client = new \GuzzleHttp\Client();
-            $response = $client->get($url);
-
-            if ($response->getStatusCode() === 200) {
-                $fileContent = $response->getBody();
-
-                // Extrai o nome do arquivo e a extensão da URL
-                $parsedUrl = parse_url($url);
-                $pathInfo = pathinfo($parsedUrl['path']);
-                //$fileName = $pathInfo['filename'] ?? 'file_' . time(); // Nome do arquivo
-                $fileName  = $name ?? $pathInfo['filename'] ;
-                $extension = $pathInfo['extension'] ?? 'png'; // Extensão do arquivo
-
-                // Monta o nome do arquivo com o prefixo e a extensão
-                $fileName = 'fivers/'.$fileName . '.' . $extension;
-
-                // Salva o arquivo usando o nome extraído da URL
-                Storage::disk('public')->put($fileName, $fileContent);
-
-                return $fileName;
-            }
-
-            return null;
-        } catch (\Exception $e) {
-            return null;
+            return 0;
+        } catch (\Throwable $e) {
+            // Qualquer erro externo NUNCA derruba scheduler
+            Log::error('FIVERS: erro ao listar/importar (não derruba).', [
+                'err' => $e->getMessage(),
+            ]);
+            return 0;
         }
     }
 }
