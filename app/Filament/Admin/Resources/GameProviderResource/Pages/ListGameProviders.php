@@ -17,4 +17,3 @@ class ListGameProviders extends ListRecords
         ];
     }
 }
-
