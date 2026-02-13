@@ -127,6 +127,58 @@ if ($internalEnabled) {
     });
 
     /**
+     * HEARTBEAT (prova definitiva do schedule rodando)
+     *
+     * Use:
+     * /_internal/schedule/heartbeat?token=SEU_TOKEN
+     *
+     * Observação: requer tabela scheduler_heartbeats (migration)
+     */
+    Route::get('/_internal/schedule/heartbeat', function (Request $request) {
+        _internalTokenOr404($request);
+
+        $name = (string) $request->query('name', 'process-auto-withdrawal');
+
+        try {
+            $row = DB::table('scheduler_heartbeats')->where('name', $name)->first();
+
+            if (!$row) {
+                return response()->json([
+                    'ok' => true,
+                    'exists' => false,
+                    'name' => $name,
+                    'message' => 'Nenhum heartbeat encontrado ainda (aguarde o schedule rodar).',
+                    'ts' => now()->toDateTimeString(),
+                ]);
+            }
+
+            // diferença em segundos desde a última execução
+            $lastRanAt = $row->last_ran_at ? \Carbon\Carbon::parse($row->last_ran_at) : null;
+            $ageSeconds = $lastRanAt ? now()->diffInSeconds($lastRanAt) : null;
+
+            return response()->json([
+                'ok' => true,
+                'exists' => true,
+                'name' => $row->name,
+                'last_ran_at' => (string) $row->last_ran_at,
+                'age_seconds' => $ageSeconds,
+                'runs' => (int) ($row->runs ?? 0),
+                'last_runtime_ms' => (int) ($row->last_runtime_ms ?? 0),
+                'last_error' => $row->last_error,
+                'ts' => now()->toDateTimeString(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('SCHEDULE_HEARTBEAT: falhou', ['err' => $e->getMessage()]);
+
+            return response()->json([
+                'ok' => false,
+                'error' => $e->getMessage(),
+                'ts' => now()->toDateTimeString(),
+            ], 500);
+        }
+    });
+
+    /**
      * Lista comandos Artisan disponíveis (para auditar)
      *
      * Use:
