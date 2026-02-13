@@ -38,7 +38,6 @@ if (!function_exists('_internalTokenOr404')) {
         $token = (string) $request->query('token', '');
         $expected = (string) env('INTERNAL_ROUTES_TOKEN', '');
 
-        // Se não configurou token OU token errado -> 404
         if ($expected === '' || !hash_equals($expected, $token)) {
             abort(404);
         }
@@ -48,9 +47,7 @@ if (!function_exists('_internalTokenOr404')) {
 if ($internalEnabled) {
 
     /**
-     * Lista os schedules registrados no Laravel (o que o schedule:work vai executar)
-     *
-     * Use:
+     * Lista os schedules registrados no Laravel
      * /_internal/schedule/list?token=SEU_TOKEN
      */
     Route::get('/_internal/schedule/list', function (Request $request) {
@@ -60,13 +57,10 @@ if ($internalEnabled) {
             /** @var Schedule $schedule */
             $schedule = app(Schedule::class);
 
-            // event->description existe; command pode ser null em jobs
             $events = collect($schedule->events())->map(function ($event) {
-                $expression = method_exists($event, 'expression') ? $event->expression : null;
-
                 return [
                     'description' => (string) ($event->description ?? ''),
-                    'expression'  => (string) ($expression ?? ''),
+                    'expression'  => (string) ($event->expression ?? ''),
                     'timezone'    => (string) ($event->timezone ?? ''),
                     'command'     => (string) ($event->command ?? ''),
                     'output'      => (string) ($event->output ?? ''),
@@ -93,12 +87,9 @@ if ($internalEnabled) {
     });
 
     /**
-     * Lista comandos disponíveis no Artisan (para auditar)
-     *
-     * Use:
+     * Lista comandos Artisan disponíveis
      * /_internal/artisan/commands?token=SEU_TOKEN
      * /_internal/artisan/commands?token=SEU_TOKEN&q=fivers
-     * /_internal/artisan/commands?token=SEU_TOKEN&q=games
      */
     Route::get('/_internal/artisan/commands', function (Request $request) {
         _internalTokenOr404($request);
@@ -106,16 +97,16 @@ if ($internalEnabled) {
         $q = mb_strtolower(trim((string) $request->query('q', '')));
 
         try {
-            $app = Artisan::getFacadeRoot();
-            $kernel = $app->make(\Illuminate\Contracts\Console\Kernel::class);
-
-            // Garante que os comandos estão registrados
+            $kernel = app(\Illuminate\Contracts\Console\Kernel::class);
             $kernel->bootstrap();
 
-            $all = collect($app->all())->keys()->values(); // nomes dos comandos
+            $artisan = app();
+            $all = collect($artisan->all())->keys()->values();
 
             if ($q !== '') {
-                $all = $all->filter(fn ($name) => str_contains(mb_strtolower((string) $name), $q))->values();
+                $all = $all->filter(
+                    fn ($name) => str_contains(mb_strtolower((string) $name), $q)
+                )->values();
             }
 
             return response()->json([
@@ -138,7 +129,6 @@ if ($internalEnabled) {
 
     /**
      * DB PING (interno)
-     * Use:
      * /_internal/db/ping?token=SEU_TOKEN
      */
     Route::get('/_internal/db/ping', function (Request $request) {
@@ -168,7 +158,7 @@ if ($internalEnabled) {
     });
 
     /**
-     * TESTE DA FILA (não renderiza Vue)
+     * TESTE DA FILA
      * /queue-test?token=SEU_TOKEN
      */
     Route::get('/queue-test', function (Request $request) {
@@ -190,8 +180,7 @@ if ($internalEnabled) {
     });
 
     /**
-     * Alias interno opcional
-     * /_internal/queue/test?token=SEU_TOKEN
+     * Alias interno fila
      */
     Route::get('/_internal/queue/test', function (Request $request) {
         _internalTokenOr404($request);
@@ -199,8 +188,6 @@ if ($internalEnabled) {
         TestQueueJob::dispatch()
             ->onConnection('database')
             ->onQueue('default');
-
-        Log::info('QUEUE_TEST: job despachado via /_internal/queue/test');
 
         return response()->json([
             'ok' => true,
@@ -210,10 +197,7 @@ if ($internalEnabled) {
     });
 
     /**
-     * SPIN (modo interno)
-     *
-     * Start por GET:
-     * /_internal/spin/start?token=...&provider=demo&game_code=demo_game
+     * SPIN interno
      */
     Route::get('/_internal/spin/start', function (Request $request) {
         _internalTokenOr404($request);
@@ -233,23 +217,12 @@ if ($internalEnabled) {
                 'updated_at' => now(),
             ]);
         } catch (\Throwable $e) {
-            Log::error('SPIN_START: falhou insert em spin_runs', [
-                'err' => $e->getMessage(),
-            ]);
-
             return response()->json([
                 'ok' => false,
-                'error' => 'spin_runs_table_missing_or_invalid',
-                'detail' => $e->getMessage(),
+                'error' => $e->getMessage(),
                 'ts' => now()->toDateTimeString(),
             ], 500);
         }
-
-        Log::info('SPIN_START: criado', [
-            'request_id' => $requestId,
-            'provider' => $provider,
-            'game_code' => $gameCode,
-        ]);
 
         return response()->json([
             'ok' => true,
@@ -261,27 +234,10 @@ if ($internalEnabled) {
         ]);
     });
 
-    /**
-     * Consultar status:
-     * /_internal/spin/status/{request_id}?token=...
-     */
     Route::get('/_internal/spin/status/{request_id}', function (Request $request, string $request_id) {
         _internalTokenOr404($request);
 
-        try {
-            $row = DB::table('spin_runs')->where('request_id', $request_id)->first();
-        } catch (\Throwable $e) {
-            Log::error('SPIN_STATUS: falhou select em spin_runs', [
-                'err' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'ok' => false,
-                'error' => 'spin_runs_table_missing_or_invalid',
-                'detail' => $e->getMessage(),
-                'ts' => now()->toDateTimeString(),
-            ], 500);
-        }
+        $row = DB::table('spin_runs')->where('request_id', $request_id)->first();
 
         if (!$row) {
             return response()->json(['ok' => false, 'error' => 'not_found'], 404);
@@ -299,14 +255,14 @@ if ($internalEnabled) {
 }
 
 /**
- * Carrega as rotas do sistema (se existirem)
+ * Carrega rotas do sistema
  */
 if (file_exists(__DIR__ . '/groups/layouts/app.php')) {
     include_once __DIR__ . '/groups/layouts/app.php';
 }
 
 /**
- * Página principal (Vue em hash mode)
+ * Página principal (Vue hash mode)
  */
 Route::get('/', function () {
     return view('layouts.app');
