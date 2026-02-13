@@ -27,7 +27,7 @@ use App\Filament\Admin\Resources\VipResource;
 use App\Filament\Admin\Resources\WalletResource;
 use App\Filament\Admin\Resources\WithdrawalResource;
 
-// ✅ NOVO RESOURCE
+// NOVO RESOURCE
 use App\Filament\Resources\GameProviderResource;
 
 use App\Http\Middleware\CheckAdmin;
@@ -76,7 +76,7 @@ class AdminPanelProvider extends PanelProvider
                 for: 'App\\Filament\\Admin\\Resources'
             )
 
-            // ✅ NOVOS RESOURCES (fora da pasta Admin)
+            // NOVOS RESOURCES (fora da pasta Admin)
             ->discoverResources(
                 in: app_path('Filament/Resources'),
                 for: 'App\\Filament\\Resources'
@@ -128,7 +128,7 @@ class AdminPanelProvider extends PanelProvider
                                 ...GameResource::getNavigationItems(),
                                 ...OrderResource::getNavigationItems(),
 
-                                // ✅ NOVO MENU PROVIDERS DEFINITIVO
+                                // NOVO MENU PROVIDERS DEFINITIVO
                                 ...GameProviderResource::getNavigationItems(),
                             ])
                         : NavigationGroup::make(),
