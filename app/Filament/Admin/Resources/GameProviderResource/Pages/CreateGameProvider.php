@@ -9,4 +9,3 @@ class CreateGameProvider extends CreateRecord
 {
     protected static string $resource = GameProviderResource::class;
 }
-
