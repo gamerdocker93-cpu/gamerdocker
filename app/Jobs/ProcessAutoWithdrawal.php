@@ -11,6 +11,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -26,50 +27,98 @@ class ProcessAutoWithdrawal implements ShouldQueue
 
     public function handle(): void
     {
-        $setting = Setting::first();
-        if (!$setting) {
-            Log::warning('AutoWithdraw: Setting não encontrado.');
-            return;
+        // ==========================
+        // HEARTBEAT (prova definitiva)
+        // ==========================
+        $hbName = 'process-auto-withdrawal';
+        $hbStart = microtime(true);
+        $hbError = null;
+
+        try {
+            $setting = Setting::first();
+            if (!$setting) {
+                Log::warning('AutoWithdraw: Setting não encontrado.');
+                return;
+            }
+
+            // MASTER + TOGGLES
+            $masterEnabled = (bool) ($setting->auto_withdraw_enabled ?? false);
+
+            // players (usuarios)
+            $autoPlayersEnabled = (bool) ($setting->auto_withdraw_players ?? false);
+
+            // afiliados (vamos deixar pronto, mas você vai ligar depois)
+            $autoAffEnabled = (bool) ($setting->auto_withdraw_affiliates ?? false);
+            $autoAffMaster  = (bool) ($setting->auto_withdraw_affiliate_enabled ?? false); // nome certo da coluna
+
+            if (!$masterEnabled) {
+                // master OFF = não roda nada
+                return;
+            }
+
+            // Agora: vamos rodar SOMENTE PLAYERS (uma de cada vez, como você pediu)
+            if (!$autoPlayersEnabled) {
+                return;
+            }
+
+            $batchSize = (int) ($setting->auto_withdraw_batch_size ?? $this->defaultBatchSize);
+            if ($batchSize <= 0) $batchSize = $this->defaultBatchSize;
+
+            $preferred = strtolower((string) ($setting->auto_withdraw_gateway ?? 'sharkpay'));
+
+            $gateway = Gateway::first();
+            if (!$gateway) {
+                Log::warning('AutoWithdraw: Gateway (tabela gateways) não encontrado.');
+                return;
+            }
+
+            // Apenas SAQUES DE PLAYERS
+            $this->processUserWithdrawals($gateway, $preferred, $batchSize);
+
+            // (Afiliados fica pra próxima etapa)
+            // if ($autoAffMaster && $autoAffEnabled) {
+            //     $this->processAffiliateWithdrawals($gateway, $preferred, $batchSize);
+            // }
+
+        } catch (\Throwable $e) {
+            $hbError = $e->getMessage();
+
+            Log::error('AutoWithdraw: erro no job ProcessAutoWithdrawal', [
+                'message' => $e->getMessage(),
+            ]);
+
+            // mantém comportamento normal do Laravel (para aparecer nos logs como falha)
+            throw $e;
+        } finally {
+            // grava heartbeat SEMPRE, mesmo se return cedo ou erro
+            $runtimeMs = (int) round((microtime(true) - $hbStart) * 1000);
+
+            try {
+                // updateOrInsert sempre funciona em Query Builder
+                DB::table('scheduler_heartbeats')->updateOrInsert(
+                    ['name' => $hbName],
+                    [
+                        'last_ran_at' => now(),
+                        // increment usando raw
+                        'runs' => DB::raw('runs + 1'),
+                        'last_runtime_ms' => $runtimeMs,
+                        'last_error' => $hbError,
+                        'updated_at' => now(),
+                        'created_at' => now(),
+                    ]
+                );
+
+                Log::info('HEARTBEAT: process-auto-withdrawal', [
+                    'runtime_ms' => $runtimeMs,
+                    'error' => $hbError,
+                ]);
+            } catch (\Throwable $e) {
+                // Se não existir tabela ainda, não pode derrubar o job.
+                Log::warning('HEARTBEAT: falhou ao gravar em scheduler_heartbeats (ok ignorar)', [
+                    'err' => $e->getMessage(),
+                ]);
+            }
         }
-
-        // MASTER + TOGGLES
-        $masterEnabled = (bool) ($setting->auto_withdraw_enabled ?? false);
-
-        // players (usuarios)
-        $autoPlayersEnabled = (bool) ($setting->auto_withdraw_players ?? false);
-
-        // afiliados (vamos deixar pronto, mas você vai ligar depois)
-        $autoAffEnabled = (bool) ($setting->auto_withdraw_affiliates ?? false);
-        $autoAffMaster  = (bool) ($setting->auto_withdraw_affiliate_enabled ?? false); // ✅ nome certo da coluna
-
-        if (!$masterEnabled) {
-            // master OFF = não roda nada
-            return;
-        }
-
-        // Agora: vamos rodar SOMENTE PLAYERS (uma de cada vez, como você pediu)
-        if (!$autoPlayersEnabled) {
-            return;
-        }
-
-        $batchSize = (int) ($setting->auto_withdraw_batch_size ?? $this->defaultBatchSize);
-        if ($batchSize <= 0) $batchSize = $this->defaultBatchSize;
-
-        $preferred = strtolower((string) ($setting->auto_withdraw_gateway ?? 'sharkpay'));
-
-        $gateway = Gateway::first();
-        if (!$gateway) {
-            Log::warning('AutoWithdraw: Gateway (tabela gateways) não encontrado.');
-            return;
-        }
-
-        // ✅ Apenas SAQUES DE PLAYERS
-        $this->processUserWithdrawals($gateway, $preferred, $batchSize);
-
-        // (Afiliados fica pra próxima etapa)
-        // if ($autoAffMaster && $autoAffEnabled) {
-        //     $this->processAffiliateWithdrawals($gateway, $preferred, $batchSize);
-        // }
     }
 
     protected function processUserWithdrawals(Gateway $gateway, string $preferred, int $batchSize): void
