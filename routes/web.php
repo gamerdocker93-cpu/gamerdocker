@@ -56,12 +56,46 @@ if ($internalEnabled) {
         _internalTokenOr404($request);
 
         try {
+            // Preferência: usar Artisan schedule:list (carrega Kernel como no console)
+            try {
+                $exit = Artisan::call('schedule:list', ['--json' => true]);
+                $out  = trim(Artisan::output());
+
+                if ($exit === 0 && $out !== '') {
+                    $decoded = json_decode($out, true);
+
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        return response()->json([
+                            'ok' => true,
+                            'source' => 'artisan:schedule:list --json',
+                            'data' => $decoded,
+                            'ts' => now()->toDateTimeString(),
+                        ]);
+                    }
+
+                    return response()->json([
+                        'ok' => true,
+                        'source' => 'artisan:schedule:list --json (raw)',
+                        'raw' => $out,
+                        'ts' => now()->toDateTimeString(),
+                    ]);
+                }
+            } catch (\Throwable $ignored) {
+                // Se não existir schedule:list nessa versão, cai pro fallback abaixo.
+            }
+
+            // Fallback: leitura via Schedule::class (pode vir vazio em alguns setups)
             /** @var Schedule $schedule */
             $schedule = app(Schedule::class);
 
             $events = collect($schedule->events())->map(function ($event) {
-                // Alguns campos podem não existir dependendo da versão/driver (job vs command)
-                $expression = property_exists($event, 'expression') ? $event->expression : (method_exists($event, 'expression') ? $event->expression() : null);
+                $expression = null;
+
+                if (property_exists($event, 'expression')) {
+                    $expression = $event->expression;
+                } elseif (method_exists($event, 'expression')) {
+                    $expression = $event->expression();
+                }
 
                 return [
                     'description' => (string) ($event->description ?? ''),
@@ -76,6 +110,7 @@ if ($internalEnabled) {
 
             return response()->json([
                 'ok' => true,
+                'source' => 'schedule:class (fallback)',
                 'count' => $events->count(),
                 'events' => $events,
                 'ts' => now()->toDateTimeString(),
@@ -109,7 +144,7 @@ if ($internalEnabled) {
             $kernel = app(\Illuminate\Contracts\Console\Kernel::class);
             $kernel->bootstrap();
 
-            // IMPORTANTe: Artisan::all() existe; app()->all() NÃO (foi o seu erro do print)
+            // Artisan::all() existe; app()->all() NÃO
             $all = collect(Artisan::all())->keys()->values();
 
             if ($q !== '') {
