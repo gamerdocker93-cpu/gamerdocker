@@ -14,69 +14,82 @@ class GameProviderResource extends Resource
 {
     protected static ?string $model = GameProvider::class;
 
+    // URL: /admin/game-providers
+    protected static ?string $slug = 'game-providers';
+
     protected static ?string $navigationIcon = 'heroicon-o-server-stack';
-    protected static ?string $navigationGroup = 'Games';
-    protected static ?string $navigationLabel = 'Providers';
-    protected static ?string $modelLabel = 'Provider';
-    protected static ?string $pluralModelLabel = 'Providers';
-    protected static ?int $navigationSort = 10;
+
+    protected static ?string $navigationGroup = 'Meus Jogos';
+    protected static ?int $navigationSort = 20;
+
+    public static function getNavigationLabel(): string
+    {
+        return 'Provedores';
+    }
 
     public static function form(Form $form): Form
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Provider')
-                    ->columns(2)
-                    ->schema([
-                        Forms\Components\TextInput::make('code')
-                            ->label('Code')
-                            ->helperText('Ex: worldslot, fivers, venix, games2api...')
-                            ->required()
-                            ->maxLength(50)
-                            ->regex('/^[a-z0-9_]+$/')
-                            ->unique(ignoreRecord: true)
-                            ->disabled(fn ($record) => filled($record)) // não deixa mudar depois de criado
-                            ->dehydrated(), // salva no create
+        return $form->schema([
+            Forms\Components\Section::make('Provider')
+                ->schema([
+                    Forms\Components\TextInput::make('code')
+                        ->label('Code (ex: worldslot)')
+                        ->required()
+                        ->maxLength(50)
+                        ->unique(ignoreRecord: true)
+                        ->helperText('Identificador único usado nos comandos (games:sync {code})'),
 
-                        Forms\Components\TextInput::make('name')
-                            ->label('Name')
-                            ->required()
-                            ->maxLength(120),
+                    Forms\Components\TextInput::make('name')
+                        ->label('Nome')
+                        ->required()
+                        ->maxLength(120),
 
-                        Forms\Components\Toggle::make('enabled')
-                            ->label('Enabled')
-                            ->default(true)
-                            ->inline(false),
+                    Forms\Components\Toggle::make('enabled')
+                        ->label('Habilitado')
+                        ->default(false),
 
-                        Forms\Components\TextInput::make('base_url')
-                            ->label('Base URL')
-                            ->placeholder('https://api.exemplo.com')
-                            ->maxLength(255)
-                            ->columnSpan(1),
-                    ]),
+                    Forms\Components\TextInput::make('base_url')
+                        ->label('Base URL')
+                        ->placeholder('https://api.exemplo.com')
+                        ->maxLength(255),
+                ])
+                ->columns(2),
 
-                Forms\Components\Section::make('Credentials (JSON)')
-                    ->description('Atenção: não cole secrets em logs/prints. Se possível, use variáveis de ambiente em produção.')
-                    ->collapsible()
-                    ->collapsed()
-                    ->schema([
-                        // Se você tiver o package creagia/filament-code-field (você tem), use o CodeField.
-                        // Caso dê erro, troque por Textarea.
-                        \Creagia\FilamentCodeField\CodeField::make('credentials_json')
-                            ->label('credentials_json')
-                            ->language('json')
-                            ->helperText('JSON com as chaves do provedor. Ex: {"api_key":"...","secret":"..."}')
-                            ->columnSpanFull()
-                            ->rows(14),
+            Forms\Components\Section::make('Credenciais')
+                ->description('Salvo criptografado no banco. Edite como JSON.')
+                ->schema([
+                    // Se você não tiver o "CodeField" funcionando, troque por Textarea logo abaixo.
+                    \Creagia\FilamentCodeField\CodeField::make('credentials_json')
+                        ->label('credentials_json (JSON)')
+                        ->language('json')
+                        ->height('240px')
+                        ->helperText('Ex.: {"token":"...","secret":"..."}')
+                        ->formatStateUsing(fn ($state) => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))
+                        ->dehydrateStateUsing(function ($state) {
+                            if (is_array($state)) {
+                                return $state;
+                            }
+                            if (is_string($state)) {
+                                $decoded = json_decode($state, true);
+                                return is_array($decoded) ? $decoded : [];
+                            }
+                            return [];
+                        }),
 
-                        // Alternativa (se o CodeField não funcionar):
-                        // Forms\Components\Textarea::make('credentials_json')
-                        //     ->label('credentials_json')
-                        //     ->helperText('JSON com as chaves do provedor. Ex: {"api_key":"...","secret":"..."}')
-                        //     ->columnSpanFull()
-                        //     ->rows(14),
-                    ]),
-            ]);
+                    /*
+                    // Alternativa simples (se preferir):
+                    Forms\Components\Textarea::make('credentials_json')
+                        ->label('credentials_json (JSON)')
+                        ->rows(10)
+                        ->helperText('Ex.: {"token":"...","secret":"..."}')
+                        ->formatStateUsing(fn ($state) => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))
+                        ->dehydrateStateUsing(function ($state) {
+                            $decoded = json_decode((string) $state, true);
+                            return is_array($decoded) ? $decoded : [];
+                        }),
+                    */
+                ]),
+        ]);
     }
 
     public static function table(Table $table): Table
@@ -89,24 +102,26 @@ class GameProviderResource extends Resource
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('name')
-                    ->label('Name')
+                    ->label('Nome')
                     ->searchable()
                     ->sortable(),
 
                 Tables\Columns\IconColumn::make('enabled')
-                    ->label('Enabled')
+                    ->label('Ativo')
                     ->boolean()
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('base_url')
+                    ->label('Base URL')
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->wrap(),
+
                 Tables\Columns\TextColumn::make('updated_at')
-                    ->label('Updated')
-                    ->dateTime('Y-m-d H:i')
+                    ->label('Atualizado')
+                    ->dateTime('d/m/Y H:i')
                     ->sortable(),
             ])
-            ->filters([
-                Tables\Filters\TernaryFilter::make('enabled')
-                    ->label('Enabled'),
-            ])
+            ->filters([])
             ->actions([
                 Tables\Actions\EditAction::make(),
             ])
@@ -114,31 +129,7 @@ class GameProviderResource extends Resource
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
-            ])
-            ->defaultSort('code', 'asc');
-    }
-
-    /**
-     * Segurança extra: se tiver Policy, Filament respeita automaticamente.
-     * Mesmo assim, deixo um "hard stop" aqui.
-     */
-    public static function canViewAny(): bool
-    {
-        $user = auth()->user();
-
-        if (!$user) return false;
-
-        // Se você usa Spatie Roles:
-        if (method_exists($user, 'hasRole') && $user->hasRole('super-admin')) {
-            return true;
-        }
-
-        // Se você usa permissões:
-        if (method_exists($user, 'can') && $user->can('manage providers')) {
-            return true;
-        }
-
-        return false;
+            ]);
     }
 
     public static function getPages(): array
