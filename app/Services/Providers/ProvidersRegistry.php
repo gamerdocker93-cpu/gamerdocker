@@ -10,6 +10,10 @@ class ProvidersRegistry
 {
     /** @var array<string, class-string<ProviderInterface>> */
     protected array $map = [
+        // Fake (teste sem provedor real)
+        'testprovider' => \App\Services\Providers\FakeProvider::class,
+
+        // Reais
         'ever'       => EverProvider::class,
         'venix'      => VenixProvider::class,
         'worldslot'  => WorldSlotProvider::class,
@@ -49,24 +53,24 @@ class ProvidersRegistry
             throw new InvalidArgumentException("Provider '{$code}' está desabilitado.");
         }
 
-        // 1) Se existir provider real mapeado, usa ele
+        // 1) Se existir provider mapeado, usa ele
         if (isset($this->map[$code])) {
             $class = $this->map[$code];
 
-            // resolve via container se quiser injetar deps
+            // resolve via container (permite injetar deps)
             return App::make($class, ['provider' => $provider]);
         }
 
         /**
          * 2) Fallback seguro:
-         * - Em produção: NÃO permite provider sem implementação real
-         * - Fora de produção: usa FakeProvider para testes (sem contrato)
+         * - Em produção: NÃO permite provider sem implementação
+         * - Fora de produção: usa FakeProvider para testes
          */
         if (App::environment('production')) {
             throw new InvalidArgumentException("Provider não registrado no Registry: {$code}");
         }
 
-        // Se você enviar FakeProvider.php, ele vai funcionar aqui.
+        // Se FakeProvider existir, usa ele
         if (class_exists(\App\Services\Providers\FakeProvider::class)) {
             return App::make(\App\Services\Providers\FakeProvider::class, ['provider' => $provider]);
         }
@@ -80,6 +84,9 @@ class ProvidersRegistry
      */
     public function supportedCodes(): array
     {
+        // Se quiser EXCLUIR o testprovider dessa lista, descomente o filtro abaixo:
+        // return array_values(array_filter(array_keys($this->map), fn ($c) => $c !== 'testprovider'));
+
         return array_keys($this->map);
     }
 
@@ -88,6 +95,10 @@ class ProvidersRegistry
      */
     public function dbCodes(): array
     {
-        return GameProvider::query()->pluck('code')->map(fn ($c) => strtolower((string) $c))->values()->all();
+        return GameProvider::query()
+            ->pluck('code')
+            ->map(fn ($c) => strtolower((string) $c))
+            ->values()
+            ->all();
     }
 }
