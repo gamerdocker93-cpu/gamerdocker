@@ -16,6 +16,7 @@ use App\Filament\Admin\Resources\AffiliateWithdrawResource;
 use App\Filament\Admin\Resources\BannerResource;
 use App\Filament\Admin\Resources\CategoryResource;
 use App\Filament\Admin\Resources\DepositResource;
+use App\Filament\Admin\Resources\GameProviderResource;
 use App\Filament\Admin\Resources\GameResource;
 use App\Filament\Admin\Resources\MissionResource;
 use App\Filament\Admin\Resources\OrderResource;
@@ -26,7 +27,6 @@ use App\Filament\Admin\Resources\UserResource;
 use App\Filament\Admin\Resources\VipResource;
 use App\Filament\Admin\Resources\WalletResource;
 use App\Filament\Admin\Resources\WithdrawalResource;
-use App\Filament\Resources\GameProviderResource;
 use App\Http\Middleware\CheckAdmin;
 use App\Livewire\AdminWidgets;
 use App\Livewire\WalletOverview;
@@ -68,18 +68,13 @@ class AdminPanelProvider extends PanelProvider
             ->font('Roboto Condensed')
             ->brandLogo(fn () => view('filament.components.logo'))
 
-            // Resources antigos
+            // Resources
             ->discoverResources(
                 in: app_path('Filament/Admin/Resources'),
                 for: 'App\\Filament\\Admin\\Resources'
             )
 
-            // NOVOS RESOURCES (fora da pasta Admin)
-            ->discoverResources(
-                in: app_path('Filament/Resources'),
-                for: 'App\\Filament\\Resources'
-            )
-
+            // Pages
             ->discoverPages(
                 in: app_path('Filament/Admin/Pages'),
                 for: 'App\\Filament\\Admin\\Pages'
@@ -87,9 +82,11 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 DashboardAdmin::class,
             ])
+
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
             ->sidebarCollapsibleOnDesktop()
             ->collapsibleNavigationGroups(true)
+
             ->discoverWidgets(
                 in: app_path('Filament/Admin/Widgets'),
                 for: 'App\\Filament\\Admin\\Widgets'
@@ -98,8 +95,8 @@ class AdminPanelProvider extends PanelProvider
                 WalletOverview::class,
                 AdminWidgets::class,
             ])
+
             ->navigation(function (NavigationBuilder $builder): NavigationBuilder {
-                // seguro em produção: não chama ->user() quando não há sessão
                 $isAdmin = Auth::check() && Auth::user()?->hasRole('admin');
 
                 return $builder->groups([
@@ -129,7 +126,7 @@ class AdminPanelProvider extends PanelProvider
                                 ...GameResource::getNavigationItems(),
                                 ...OrderResource::getNavigationItems(),
 
-                                // NOVO MENU PROVIDERS DEFINITIVO
+                                // Game Providers
                                 ...GameProviderResource::getNavigationItems(),
                             ])
                         : NavigationGroup::make(),
@@ -233,6 +230,7 @@ class AdminPanelProvider extends PanelProvider
                         ]),
                 ]);
             })
+
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
