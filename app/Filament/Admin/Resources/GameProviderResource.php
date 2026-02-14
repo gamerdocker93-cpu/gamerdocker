@@ -9,7 +9,6 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Creagia\FilamentCodeField\CodeField;
 
 class GameProviderResource extends Resource
 {
@@ -58,21 +57,19 @@ class GameProviderResource extends Resource
             Forms\Components\Section::make('Credenciais')
                 ->description('Salvo criptografado no banco. Edite como JSON.')
                 ->schema([
-                    CodeField::make('credentials_json')
+                    Forms\Components\Textarea::make('credentials_json')
                         ->label('credentials_json (JSON)')
-                        ->language('json')
-                        ->height('240px')
+                        ->rows(10)
                         ->helperText('Ex.: {"token":"...","secret":"..."}')
-                        ->formatStateUsing(fn ($state) => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))
+                        ->formatStateUsing(
+                            fn ($state) => json_encode(
+                                $state ?? [],
+                                JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+                            )
+                        )
                         ->dehydrateStateUsing(function ($state) {
-                            if (is_array($state)) {
-                                return $state;
-                            }
-                            if (is_string($state)) {
-                                $decoded = json_decode($state, true);
-                                return is_array($decoded) ? $decoded : [];
-                            }
-                            return [];
+                            $decoded = json_decode((string) $state, true);
+                            return is_array($decoded) ? $decoded : [];
                         }),
                 ]),
         ]);
