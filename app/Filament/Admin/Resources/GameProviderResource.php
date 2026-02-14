@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Filament\Resources;
+namespace App\Filament\Admin\Resources;
 
-use App\Filament\Resources\GameProviderResource\Pages;
+use App\Filament\Admin\Resources\GameProviderResource\Pages;
 use App\Models\GameProvider;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -14,11 +14,9 @@ class GameProviderResource extends Resource
 {
     protected static ?string $model = GameProvider::class;
 
-    // URL: /admin/game-providers
     protected static ?string $slug = 'game-providers';
 
     protected static ?string $navigationIcon = 'heroicon-o-server-stack';
-
     protected static ?string $navigationGroup = 'Meus Jogos';
     protected static ?int $navigationSort = 20;
 
@@ -36,8 +34,7 @@ class GameProviderResource extends Resource
                         ->label('Code (ex: worldslot)')
                         ->required()
                         ->maxLength(50)
-                        ->unique(ignoreRecord: true)
-                        ->helperText('Identificador único usado nos comandos (games:sync {code})'),
+                        ->unique(ignoreRecord: true),
 
                     Forms\Components\TextInput::make('name')
                         ->label('Nome')
@@ -58,36 +55,16 @@ class GameProviderResource extends Resource
             Forms\Components\Section::make('Credenciais')
                 ->description('Salvo criptografado no banco. Edite como JSON.')
                 ->schema([
-                    // Se você não tiver o "CodeField" funcionando, troque por Textarea logo abaixo.
-                    \Creagia\FilamentCodeField\CodeField::make('credentials_json')
-                        ->label('credentials_json (JSON)')
-                        ->language('json')
-                        ->height('240px')
-                        ->helperText('Ex.: {"token":"...","secret":"..."}')
-                        ->formatStateUsing(fn ($state) => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))
-                        ->dehydrateStateUsing(function ($state) {
-                            if (is_array($state)) {
-                                return $state;
-                            }
-                            if (is_string($state)) {
-                                $decoded = json_decode($state, true);
-                                return is_array($decoded) ? $decoded : [];
-                            }
-                            return [];
-                        }),
-
-                    /*
-                    // Alternativa simples (se preferir):
                     Forms\Components\Textarea::make('credentials_json')
                         ->label('credentials_json (JSON)')
                         ->rows(10)
-                        ->helperText('Ex.: {"token":"...","secret":"..."}')
-                        ->formatStateUsing(fn ($state) => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))
+                        ->formatStateUsing(fn ($state) =>
+                            json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                        )
                         ->dehydrateStateUsing(function ($state) {
                             $decoded = json_decode((string) $state, true);
                             return is_array($decoded) ? $decoded : [];
                         }),
-                    */
                 ]),
         ]);
     }
@@ -97,38 +74,26 @@ class GameProviderResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('code')
-                    ->label('Code')
                     ->searchable()
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('name')
-                    ->label('Nome')
                     ->searchable()
                     ->sortable(),
 
                 Tables\Columns\IconColumn::make('enabled')
-                    ->label('Ativo')
                     ->boolean()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('base_url')
-                    ->label('Base URL')
-                    ->toggleable(isToggledHiddenByDefault: true)
-                    ->wrap(),
-
                 Tables\Columns\TextColumn::make('updated_at')
-                    ->label('Atualizado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable(),
             ])
-            ->filters([])
             ->actions([
                 Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
+                Tables\Actions\DeleteBulkAction::make(),
             ]);
     }
 
