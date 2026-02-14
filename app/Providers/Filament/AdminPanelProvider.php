@@ -26,10 +26,7 @@ use App\Filament\Admin\Resources\UserResource;
 use App\Filament\Admin\Resources\VipResource;
 use App\Filament\Admin\Resources\WalletResource;
 use App\Filament\Admin\Resources\WithdrawalResource;
-
-// NOVO RESOURCE
 use App\Filament\Resources\GameProviderResource;
-
 use App\Http\Middleware\CheckAdmin;
 use App\Livewire\AdminWidgets;
 use App\Livewire\WalletOverview;
@@ -48,6 +45,7 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
@@ -101,6 +99,9 @@ class AdminPanelProvider extends PanelProvider
                 AdminWidgets::class,
             ])
             ->navigation(function (NavigationBuilder $builder): NavigationBuilder {
+                // ✅ seguro em produção: não chama ->user() quando não há sessão
+                $isAdmin = Auth::check() && Auth::user()?->hasRole('admin');
+
                 return $builder->groups([
                     NavigationGroup::make()
                         ->items([
@@ -111,7 +112,7 @@ class AdminPanelProvider extends PanelProvider
                                 ->isActiveWhen(fn () => request()->routeIs('filament.pages.settings')),
                         ]),
 
-                    auth()->user()?->hasRole('admin')
+                    $isAdmin
                         ? NavigationGroup::make('Modulos')
                             ->items([
                                 ...MissionResource::getNavigationItems(),
@@ -120,7 +121,7 @@ class AdminPanelProvider extends PanelProvider
                             ])
                         : NavigationGroup::make(),
 
-                    auth()->user()?->hasRole('admin')
+                    $isAdmin
                         ? NavigationGroup::make('Meus Jogos')
                             ->items([
                                 ...CategoryResource::getNavigationItems(),
@@ -133,47 +134,47 @@ class AdminPanelProvider extends PanelProvider
                             ])
                         : NavigationGroup::make(),
 
-                    auth()->user()?->hasRole('admin')
+                    $isAdmin
                         ? NavigationGroup::make('Pagamentos')
                             ->items([
                                 NavigationItem::make('games-key')
                                     ->icon('heroicon-o-cog-6-tooth')
                                     ->label('Chaves dos Jogos')
                                     ->url(fn (): string => GamesKeyPage::getUrl())
-                                    ->visible(fn (): bool => auth()->user()?->hasRole('admin')),
+                                    ->visible(fn (): bool => $isAdmin),
 
                                 NavigationItem::make('gateway')
                                     ->icon('heroicon-o-cog-6-tooth')
                                     ->label('Gateway de Pagamentos')
                                     ->url(fn (): string => GatewayPage::getUrl())
-                                    ->visible(fn (): bool => auth()->user()?->hasRole('admin')),
+                                    ->visible(fn (): bool => $isAdmin),
 
                                 NavigationItem::make('auto-withdraw')
                                     ->icon('heroicon-o-arrow-path')
                                     ->label('Auto Saque')
                                     ->url(fn (): string => AutoWithdrawPage::getUrl())
-                                    ->visible(fn (): bool => auth()->user()?->hasRole('admin')),
+                                    ->visible(fn (): bool => $isAdmin),
 
                                 NavigationItem::make('digitopay-pagamentos')
                                     ->icon('heroicon-o-currency-dollar')
                                     ->label('Histórico de Pagamentos')
                                     ->url(fn (): string => DigitoPayPaymentPage::getUrl())
-                                    ->visible(fn (): bool => auth()->user()?->hasRole('admin')),
+                                    ->visible(fn (): bool => $isAdmin),
                             ])
                         : NavigationGroup::make(),
 
-                    auth()->user()?->hasRole('admin')
+                    $isAdmin
                         ? NavigationGroup::make('Afiliados')
                             ->items([
                                 NavigationItem::make('withdraw_affiliates')
                                     ->icon('heroicon-o-banknotes')
                                     ->label('Saques de Afiliados')
                                     ->url(fn (): string => AffiliateWithdrawResource::getUrl())
-                                    ->visible(fn (): bool => auth()->user()?->hasRole('admin')),
+                                    ->visible(fn (): bool => $isAdmin),
                             ])
                         : NavigationGroup::make(),
 
-                    auth()->user()?->hasRole('admin')
+                    $isAdmin
                         ? NavigationGroup::make('Customização')
                             ->items([
                                 ...BannerResource::getNavigationItems(),
@@ -181,34 +182,34 @@ class AdminPanelProvider extends PanelProvider
                                     ->icon('heroicon-o-paint-brush')
                                     ->label('Customização')
                                     ->url(fn (): string => LayoutCssCustom::getUrl())
-                                    ->visible(fn (): bool => auth()->user()?->hasRole('admin')),
+                                    ->visible(fn (): bool => $isAdmin),
                             ])
                         : NavigationGroup::make(),
 
-                    auth()->user()?->hasRole('admin')
+                    $isAdmin
                         ? NavigationGroup::make('Definições')
                             ->items([
                                 NavigationItem::make('settings')
                                     ->icon('heroicon-o-cog-6-tooth')
                                     ->label('Configurações')
                                     ->url(fn (): string => SettingResource::getUrl())
-                                    ->visible(fn (): bool => auth()->user()?->hasRole('admin')),
+                                    ->visible(fn (): bool => $isAdmin),
 
                                 NavigationItem::make('setting-spin')
                                     ->icon('heroicon-o-cog-6-tooth')
                                     ->label('Definições do Spin')
                                     ->url(fn (): string => SettingSpin::getUrl())
-                                    ->visible(fn (): bool => auth()->user()?->hasRole('admin')),
+                                    ->visible(fn (): bool => $isAdmin),
 
                                 NavigationItem::make('setting-mail')
                                     ->icon('heroicon-o-cog-6-tooth')
                                     ->label('Definições de Email')
                                     ->url(fn (): string => SettingMailPage::getUrl())
-                                    ->visible(fn (): bool => auth()->user()?->hasRole('admin')),
+                                    ->visible(fn (): bool => $isAdmin),
                             ])
                         : NavigationGroup::make(),
 
-                    auth()->user()?->hasRole('admin')
+                    $isAdmin
                         ? NavigationGroup::make('Usuários')
                             ->items([
                                 ...UserResource::getNavigationItems(),
@@ -224,7 +225,7 @@ class AdminPanelProvider extends PanelProvider
                                 ->icon('heroicon-o-wrench')
                                 ->label('Opções Avançada')
                                 ->url(fn (): string => AdvancedPage::getUrl())
-                                ->visible(fn (): bool => auth()->user()?->hasRole('admin')),
+                                ->visible(fn (): bool => $isAdmin),
 
                             NavigationItem::make('Limpar o cache')
                                 ->url(url('/clear'))
