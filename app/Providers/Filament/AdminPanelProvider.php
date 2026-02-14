@@ -99,7 +99,7 @@ class AdminPanelProvider extends PanelProvider
                 AdminWidgets::class,
             ])
             ->navigation(function (NavigationBuilder $builder): NavigationBuilder {
-                // ✅ seguro em produção: não chama ->user() quando não há sessão
+                // seguro em produção: não chama ->user() quando não há sessão
                 $isAdmin = Auth::check() && Auth::user()?->hasRole('admin');
 
                 return $builder->groups([
