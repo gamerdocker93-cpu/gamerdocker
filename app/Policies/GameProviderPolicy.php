@@ -2,48 +2,56 @@
 
 namespace App\Policies;
 
-use App\Models\GameProvider;
 use App\Models\User;
+use App\Models\GameProvider;
 
 class GameProviderPolicy
 {
-    protected function isAllowed(User $user): bool
+    /**
+     * Antes de qualquer checagem: admin pode tudo.
+     */
+    public function before(User $user, string $ability): bool|null
     {
-        // Super admin passa
-        if (method_exists($user, 'hasRole') && $user->hasRole('super-admin')) {
-            return true;
-        }
-
-        // Permissão granular
-        if (method_exists($user, 'can') && $user->can('manage providers')) {
-            return true;
-        }
-
-        return false;
+        return $user->hasRole('admin') ? true : null;
     }
 
     public function viewAny(User $user): bool
     {
-        return $this->isAllowed($user);
+        return false;
     }
 
     public function view(User $user, GameProvider $gameProvider): bool
     {
-        return $this->isAllowed($user);
+        return false;
     }
 
     public function create(User $user): bool
     {
-        return $this->isAllowed($user);
+        return false;
     }
 
     public function update(User $user, GameProvider $gameProvider): bool
     {
-        return $this->isAllowed($user);
+        return false;
     }
 
     public function delete(User $user, GameProvider $gameProvider): bool
     {
-        return $this->isAllowed($user);
+        return false;
+    }
+
+    public function deleteAny(User $user): bool
+    {
+        return false;
+    }
+
+    public function restore(User $user, GameProvider $gameProvider): bool
+    {
+        return false;
+    }
+
+    public function forceDelete(User $user, GameProvider $gameProvider): bool
+    {
+        return false;
     }
 }
