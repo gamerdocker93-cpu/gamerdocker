@@ -292,6 +292,55 @@ if ($internalEnabled) {
     });
 
     /**
+     * RODAR SYNC DE PROVIDERS/GAMES (interno, sem shell)
+     *
+     * Use:
+     * /_internal/providers/run-sync/testproviderfake?token=SEU_TOKEN
+     * /_internal/providers/run-sync/testprovider?token=SEU_TOKEN
+     *
+     * Obs: isso executa providers:sync {code} e games:sync {code}
+     */
+    Route::get('/_internal/providers/run-sync/{code}', function (Request $request, string $code) {
+        _internalTokenOr404($request);
+
+        $code = strtolower(trim($code));
+
+        try {
+            $exit1 = Artisan::call('providers:sync', ['code' => $code]);
+            $out1  = trim(Artisan::output());
+
+            $exit2 = Artisan::call('games:sync', ['code' => $code]);
+            $out2  = trim(Artisan::output());
+
+            return response()->json([
+                'ok' => true,
+                'code' => $code,
+                'providers_sync' => [
+                    'exit' => $exit1,
+                    'output' => $out1,
+                ],
+                'games_sync' => [
+                    'exit' => $exit2,
+                    'output' => $out2,
+                ],
+                'ts' => now()->toDateTimeString(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('RUN_SYNC: falhou', [
+                'code' => $code,
+                'err' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'ok' => false,
+                'code' => $code,
+                'error' => $e->getMessage(),
+                'ts' => now()->toDateTimeString(),
+            ], 500);
+        }
+    });
+
+    /**
      * SPIN interno
      * /_internal/spin/start?token=...&provider=demo&game_code=demo_game
      */
