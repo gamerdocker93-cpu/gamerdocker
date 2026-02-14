@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Crypt;
 
 class GameProvider extends Model
@@ -24,47 +24,62 @@ class GameProvider extends Model
 
     /**
      * credentials_json:
-     * - Armazena criptografado (string) no banco
+     * - Salva criptografado (string) no banco
      * - Expõe como array no PHP
-     * - Compatível com legado: se estiver como JSON puro, também lê.
+     * - Lê legado: se estiver como JSON puro, também lê
+     * - Se receber string já criptografada válida, preserva/normaliza
      */
     protected function credentialsJson(): Attribute
     {
         return Attribute::make(
-            get: function ($value) {
+            get: function ($value): array {
                 if ($value === null || $value === '') {
                     return [];
                 }
 
-                // 1) Tenta decrypt (formato novo)
+                // 1) formato novo: criptografado
                 try {
                     $plain = Crypt::decryptString($value);
                     $decoded = json_decode($plain, true);
                     return is_array($decoded) ? $decoded : [];
                 } catch (\Throwable $e) {
-                    // 2) Se não for criptografado, tenta tratar como JSON puro (legado)
+                    // 2) legado: JSON puro no banco
                     $decoded = json_decode($value, true);
                     return is_array($decoded) ? $decoded : [];
                 }
             },
-            set: function ($value) {
+            set: function ($value): string {
                 // Normaliza para array
+                $arr = [];
+
                 if ($value === null || $value === '') {
-                    $value = [];
-                }
+                    $arr = [];
+                } elseif (is_array($value)) {
+                    $arr = $value;
+                } elseif (is_string($value)) {
+                    // Se vier JSON string do form
+                    $decoded = json_decode($value, true);
 
-                if (is_string($value)) {
-                    $maybe = json_decode($value, true);
-                    $value = is_array($maybe) ? $maybe : [];
-                }
-
-                if (!is_array($value)) {
-                    $value = (array) $value;
+                    if (is_array($decoded)) {
+                        $arr = $decoded;
+                    } else {
+                        // Se vier string já criptografada válida (ex: seed/legacy)
+                        try {
+                            $plain = Crypt::decryptString($value);
+                            $decoded2 = json_decode($plain, true);
+                            $arr = is_array($decoded2) ? $decoded2 : [];
+                        } catch (\Throwable $e) {
+                            // string inválida -> evita quebrar e salva vazio
+                            $arr = [];
+                        }
+                    }
+                } else {
+                    $arr = (array) $value;
                 }
 
                 // Garante JSON consistente + criptografa
-                $json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-                return Crypt::encryptString($json ?: '[]');
+                $json = json_encode($arr, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]';
+                return Crypt::encryptString($json);
             }
         );
     }
