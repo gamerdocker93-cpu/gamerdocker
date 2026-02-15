@@ -289,76 +289,7 @@ if ($internalEnabled) {
     });
 
     /**
-     * RODAR COMANDOS INTERNOS (sem shell) - ALLOWLIST
-     *
-     * Use:
-     * /_internal/run-command/providers:sync?token=SEU_TOKEN
-     * /_internal/run-command/providers:sync/testproviderfake?token=SEU_TOKEN
-     * /_internal/run-command/games:sync/testproviderfake?token=SEU_TOKEN
-     * /_internal/run-command/games:sync/testproviderfake?token=SEU_TOKEN&dry_run=1
-     */
-    Route::get('/_internal/run-command/{cmd}/{arg1?}', function (Request $request, string $cmd, ?string $arg1 = null) {
-        _internalTokenOr404($request);
-
-        $cmd = strtolower(trim($cmd));
-        $arg1 = $arg1 !== null ? strtolower(trim($arg1)) : null;
-
-        // allowlist: só o que a gente quer expor via URL
-        $allowed = [
-            'providers:sync',
-            'games:sync',
-        ];
-
-        if (!in_array($cmd, $allowed, true)) {
-            abort(404);
-        }
-
-        try {
-            $params = [];
-
-            // nossos comandos são: providers:sync {code?} e games:sync {code?}
-            if ($arg1 !== null && $arg1 !== '') {
-                $params['code'] = $arg1;
-            }
-
-            // games:sync tem --dry-run
-            if ($cmd === 'games:sync') {
-                $dry = $request->query('dry_run', null);
-                if ($dry !== null) {
-                    $params['--dry-run'] = filter_var($dry, FILTER_VALIDATE_BOOLEAN);
-                }
-            }
-
-            $exit = Artisan::call($cmd, $params);
-            $out  = trim(Artisan::output());
-
-            return response()->json([
-                'ok' => $exit === 0,
-                'command' => $cmd,
-                'args' => $params,
-                'exit' => $exit,
-                'output' => $out,
-                'ts' => now()->toDateTimeString(),
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('RUN_COMMAND: falhou', [
-                'cmd' => $cmd,
-                'arg1' => $arg1,
-                'err' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'ok' => false,
-                'command' => $cmd,
-                'arg1' => $arg1,
-                'error' => $e->getMessage(),
-                'ts' => now()->toDateTimeString(),
-            ], 500);
-        }
-    });
-
-    /**
-     * (LEGADO) RODAR SYNC DE PROVIDERS/GAMES (interno, sem shell)
+     * RODAR SYNC DE PROVIDERS/GAMES (interno, sem shell)
      *
      * Use:
      * /_internal/providers/run-sync/testproviderfake?token=SEU_TOKEN
@@ -399,6 +330,85 @@ if ($internalEnabled) {
 
             return response()->json([
                 'ok' => false,
+                'code' => $code,
+                'error' => $e->getMessage(),
+                'ts' => now()->toDateTimeString(),
+            ], 500);
+        }
+    });
+
+    /**
+     * RUN COMMAND (interno, sem shell) - versão segura
+     *
+     * Use:
+     * /_internal/run-command/providers:sync/testproviderfake?token=9fCq3VwT7mK1xN4pR8sY2hJ6aZ0dQ5uE9bL3nG7tH1kP6vX8cM4yS2rW0zA5eD9fCq3VwT7mK1xN4pR8sY2hJ6aZ0dQ5uE9bL3nG7tH1kP6vX8cM4yS2rW0zA5eD
+     * /_internal/run-command/games:sync/testproviderfake?token=9fCq3VwT7mK1xN4pR8sY2hJ6aZ0dQ5uE9bL3nG7tH1kP6vX8cM4yS2rW0zA5eD9fCq3VwT7mK1xN4pR8sY2hJ6aZ0dQ5uE9bL3nG7tH1kP6vX8cM4yS2rW0zA5eD
+     * /_internal/run-command/games:sync/testproviderfake?token=9fCq3VwT7mK1xN4pR8sY2hJ6aZ0dQ5uE9bL3nG7tH1kP6vX8cM4yS2rW0zA5eD9fCq3VwT7mK1xN4pR8sY2hJ6aZ0dQ5uE9bL3nG7tH1kP6vX8cM4yS2rW0zA5eD&dry_run=1
+     *
+     * Observação:
+     * - Só permite comandos em allowlist
+     * - Só permite "code" alfanumérico + _ + -
+     */
+    Route::get('/_internal/run-command/{cmd}/{code?}', function (Request $request, string $cmd, ?string $code = null) {
+        _internalTokenOr404($request);
+
+        $cmd = trim($cmd);
+        $code = $code !== null ? strtolower(trim($code)) : null;
+
+        $allowed = [
+            'providers:sync',
+            'games:sync',
+        ];
+
+        if (!in_array($cmd, $allowed, true)) {
+            abort(404);
+        }
+
+        if ($code !== null && $code !== '') {
+            if (!preg_match('/^[a-z0-9_-]{1,50}$/', $code)) {
+                return response()->json([
+                    'ok' => false,
+                    'error' => 'invalid_code',
+                    'ts' => now()->toDateTimeString(),
+                ], 422);
+            }
+        } else {
+            $code = null;
+        }
+
+        $args = [];
+        if ($code !== null) {
+            $args['code'] = $code;
+        }
+
+        // dry-run só para games:sync
+        if ($cmd === 'games:sync' && filter_var($request->query('dry_run', false), FILTER_VALIDATE_BOOLEAN)) {
+            $args['--dry-run'] = true;
+        }
+
+        try {
+            $exit = Artisan::call($cmd, $args);
+            $out  = trim(Artisan::output());
+
+            return response()->json([
+                'ok' => $exit === 0,
+                'cmd' => $cmd,
+                'code' => $code,
+                'args' => $args,
+                'exit' => $exit,
+                'output' => $out,
+                'ts' => now()->toDateTimeString(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('RUN_COMMAND: falhou', [
+                'cmd' => $cmd,
+                'code' => $code,
+                'err' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'ok' => false,
+                'cmd' => $cmd,
                 'code' => $code,
                 'error' => $e->getMessage(),
                 'ts' => now()->toDateTimeString(),
