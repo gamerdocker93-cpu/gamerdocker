@@ -16,11 +16,29 @@ class ProvidersSync extends Command
         $code = $this->argument('code');
         $includeDisabled = (bool) $this->option('all');
 
-        // Se passar code, roda só ele
+        // 1) Define lista de códigos (DB é fonte de verdade)
         if ($code) {
-            $codes = [strtolower(trim((string) $code))];
+            $code = strtolower(trim((string) $code));
+
+            // Se não estiver usando --all, valida enabled no DB antes de resolver
+            if (!$includeDisabled) {
+                $enabled = GameProvider::query()
+                    ->where('code', $code)
+                    ->value('enabled');
+
+                if ($enabled === null) {
+                    $this->error("ERRO: Provider não existe na tabela game_providers: {$code}");
+                    return 0;
+                }
+
+                if (!(bool) $enabled) {
+                    $this->error("ERRO: Provider '{$code}' está desabilitado. Use --all para incluir.");
+                    return 0;
+                }
+            }
+
+            $codes = [$code];
         } else {
-            // Sem code: roda apenas os providers existentes no banco
             $q = GameProvider::query()->select('code');
 
             if (!$includeDisabled) {
@@ -29,7 +47,8 @@ class ProvidersSync extends Command
 
             $codes = $q->pluck('code')
                 ->map(fn ($c) => strtolower(trim((string) $c)))
-                ->filter()
+                ->filter(fn ($c) => $c !== '')
+                ->unique()
                 ->values()
                 ->all();
         }
@@ -39,6 +58,7 @@ class ProvidersSync extends Command
             return 0;
         }
 
+        // 2) Resolve e imprime providersList
         foreach ($codes as $c) {
             $this->info(">> Provider: {$c}");
 
@@ -51,7 +71,6 @@ class ProvidersSync extends Command
                     'code' => $c,
                     'providers_list' => $data,
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-
             } catch (\Throwable $e) {
                 $this->error("ERRO: {$e->getMessage()}");
             }
