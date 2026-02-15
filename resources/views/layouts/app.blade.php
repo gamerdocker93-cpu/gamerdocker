@@ -107,20 +107,37 @@
             background-color: {{ $custom['background_base_dark'] ?? '#0b0f19' }};
         }
 
-        /* CORREÇÃO DO BOTÃO CENTRAL MOBILE */
-        .fixed.bottom-0.left-0.z-50.w-full.h-16 {
+        /* ============================================================
+           CORREÇÃO DEFINITIVA: CENTRALIZAÇÃO DO BOTÃO VERDE (FOOTER NAV)
+           ============================================================ */
+        
+        /* 1. Alinha a barra pai para distribuir os ícones laterais */
+        div#app .fixed.bottom-0.left-0.z-50.w-full {
             display: flex !important;
-            justify-content: space-around !important;
+            justify-content: space-between !important;
             align-items: center !important;
+            padding-left: 5% !important;
+            padding-right: 5% !important;
         }
 
-        .fixed.bottom-0.left-0.z-50.w-full.h-16 > a:nth-child(3), 
-        .fixed.bottom-0.left-0.z-50.w-full.h-16 > button:nth-child(3) {
+        /* 2. Captura o botão verde e joga no centro matemático da tela */
+        div#app .fixed.bottom-0.left-0.z-50.w-full a[class*="bg-green"],
+        div#app .fixed.bottom-0.left-0.z-50.w-full button[class*="bg-green"],
+        div#app .fixed.bottom-0.left-0.z-50.w-full a:nth-child(3),
+        div#app .fixed.bottom-0.left-0.z-50.w-full button:nth-child(3) {
             position: absolute !important;
             left: 50% !important;
+            bottom: 15px !important;
             transform: translateX(-50%) !important;
-            bottom: 12px !important;
-            z-index: 60 !important;
+            margin: 0 !important;
+            z-index: 100 !important;
+        }
+
+        /* 3. Garante que os outros itens não tentem ocupar o espaço do centro */
+        div#app .fixed.bottom-0.left-0.z-50.w-full > * {
+            flex: 1 !important;
+            display: flex !important;
+            justify-content: center !important;
         }
     </style>
 
