@@ -4,6 +4,7 @@ namespace App\Console\Commands\Providers;
 
 use Illuminate\Console\Command;
 use App\Services\Providers\ProvidersRegistry;
+use App\Models\GameProvider;
 use Illuminate\Support\Facades\DB;
 
 class GamesSync extends Command
@@ -17,13 +18,6 @@ class GamesSync extends Command
         $dryRun = (bool) $this->option('dry-run');
 
         $codes = $code ? [strtolower($code)] : $registry->supportedCodes();
-
-        $summary = [
-            'ok' => true,
-            'dry_run' => $dryRun,
-            'providers' => [],
-            'ts' => now()->toDateTimeString(),
-        ];
 
         foreach ($codes as $c) {
             $this->info(">> Games Sync: {$c}");
@@ -39,26 +33,44 @@ class GamesSync extends Command
             ];
 
             try {
-                $p = $registry->resolve($c);            // ProviderInterface
-                $providerModel = $p->provider();        // GameProvider (esperado no seu setup)
+                $p = $registry->resolve($c); // ProviderInterface
+
+                // ✅ "à prova de provider mal feito":
+                // tenta pegar GameProvider via método provider(), mas se não existir,
+                // busca direto no banco (fonte de verdade).
+                $providerModel = null;
+                if (method_exists($p, 'provider')) {
+                    try {
+                        $maybe = $p->provider();
+                        if ($maybe instanceof GameProvider) {
+                            $providerModel = $maybe;
+                        }
+                    } catch (\Throwable $ignored) {
+                        $providerModel = null;
+                    }
+                }
+
+                if (!$providerModel) {
+                    $providerModel = GameProvider::query()->where('code', $c)->first();
+                }
+
+                if (!$providerModel) {
+                    throw new \RuntimeException("GameProvider não encontrado no banco para code='{$c}'.");
+                }
 
                 // FK legado: games.provider_id -> providers.id (se existir)
                 $legacyProviderId = null;
                 try {
                     if (DB::getSchemaBuilder()->hasTable('providers')) {
-                        $legacyProviderId = DB::table('providers')
-                            ->where('code', $c)
-                            ->value('id');
+                        $legacyProviderId = DB::table('providers')->where('code', $c)->value('id');
                     }
                 } catch (\Throwable $ignored) {
-                    // se der qualquer erro aqui, cai pro id do GameProvider
                     $legacyProviderId = null;
                 }
 
                 $providerIdForGames = $legacyProviderId ?: $providerModel->id;
 
                 $games = $p->gamesList();
-
                 if (!is_array($games)) {
                     $games = [];
                 }
@@ -70,7 +82,6 @@ class GamesSync extends Command
 
                 if ($dryRun) {
                     $providerSummary['skipped'] = count($games);
-                    $summary['providers'][] = $providerSummary;
 
                     $this->line(json_encode([
                         'ok' => true,
@@ -82,70 +93,66 @@ class GamesSync extends Command
                     continue;
                 }
 
-                DB::beginTransaction();
+                DB::transaction(function () use (&$providerSummary, $games, $providerIdForGames, $providerModel) {
+                    foreach ($games as $g) {
+                        try {
+                            if (!is_array($g)) {
+                                $providerSummary['skipped']++;
+                                continue;
+                            }
 
-                foreach ($games as $g) {
-                    try {
-                        if (!is_array($g)) {
-                            $providerSummary['skipped']++;
-                            continue;
+                            $gameCode = (string) ($g['game_code'] ?? '');
+                            if ($gameCode === '') {
+                                $providerSummary['skipped']++;
+                                continue;
+                            }
+
+                            $exists = DB::table('games')->where('game_code', $gameCode)->exists();
+
+                            $payload = [
+                                'provider_id'     => $providerIdForGames,
+                                'game_server_url' => (string) ($g['game_server_url'] ?? ($providerModel->baseUrl() ?: '')),
+                                'game_id'         => (string) ($g['game_id'] ?? ''),
+                                'game_name'       => (string) ($g['game_name'] ?? ''),
+                                'game_code'       => $gameCode,
+                                'game_type'       => (string) ($g['game_type'] ?? 'slot'),
+                                'description'     => (string) ($g['description'] ?? 'Jogo DEMO para teste do sistema.'),
+                                'cover'           => (string) ($g['cover'] ?? 'https://via.placeholder.com/512x512.png?text=DEMO'),
+                                'status'          => (int) ($g['status'] ?? 1),
+                                'technology'      => (string) ($g['technology'] ?? 'html5'),
+                                'has_lobby'       => (int) ((bool) ($g['has_lobby'] ?? false)),
+                                'is_mobile'       => (int) ((bool) ($g['is_mobile'] ?? true)),
+                                'has_freespins'   => (int) ((bool) ($g['has_freespins'] ?? false)),
+                                'has_tables'      => (int) ((bool) ($g['has_tables'] ?? false)),
+                                'only_demo'       => (int) ((bool) ($g['only_demo'] ?? true)),
+                                'rtp'             => isset($g['rtp']) ? (float) $g['rtp'] : null,
+                                'distribution'    => (string) ($g['distribution'] ?? 'demo'),
+                                'views'           => (int) ($g['views'] ?? 0),
+                                'is_featured'     => (int) ((bool) ($g['is_featured'] ?? false)),
+                                'show_home'       => (int) ((bool) ($g['show_home'] ?? true)),
+                                'updated_at'      => now(),
+                            ];
+
+                            if (!$exists) {
+                                $payload['created_at'] = now();
+                            }
+
+                            DB::table('games')->updateOrInsert(
+                                ['game_code' => $gameCode],
+                                $payload
+                            );
+
+                            if ($exists) {
+                                $providerSummary['updated']++;
+                            } else {
+                                $providerSummary['created']++;
+                            }
+                        } catch (\Throwable $e) {
+                            $providerSummary['errors']++;
+                            // continua, não derruba o sync inteiro
                         }
-
-                        $gameCode = (string) ($g['game_code'] ?? '');
-                        if ($gameCode === '') {
-                            $providerSummary['skipped']++;
-                            continue;
-                        }
-
-                        $exists = DB::table('games')->where('game_code', $gameCode)->exists();
-
-                        $payload = [
-                            'provider_id'     => $providerIdForGames,
-                            'game_server_url' => (string) ($g['game_server_url'] ?? ($providerModel->baseUrl() ?: '')),
-                            'game_id'         => (string) ($g['game_id'] ?? ''),
-                            'game_name'       => (string) ($g['game_name'] ?? ''),
-                            'game_code'       => $gameCode,
-                            'game_type'       => (string) ($g['game_type'] ?? 'slot'),
-                            'description'     => (string) ($g['description'] ?? 'Jogo DEMO para teste do sistema.'),
-                            'cover'           => (string) ($g['cover'] ?? 'https://via.placeholder.com/512x512.png?text=DEMO'),
-                            'status'          => (int) ($g['status'] ?? 1),
-                            'technology'      => (string) ($g['technology'] ?? 'html5'),
-                            'has_lobby'       => (int) ((bool) ($g['has_lobby'] ?? false)),
-                            'is_mobile'       => (int) ((bool) ($g['is_mobile'] ?? true)),
-                            'has_freespins'   => (int) ((bool) ($g['has_freespins'] ?? false)),
-                            'has_tables'      => (int) ((bool) ($g['has_tables'] ?? false)),
-                            'only_demo'       => (int) ((bool) ($g['only_demo'] ?? true)),
-                            'rtp'             => isset($g['rtp']) ? (float) $g['rtp'] : null,
-                            'distribution'    => (string) ($g['distribution'] ?? 'demo'),
-                            'views'           => (int) ($g['views'] ?? 0),
-                            'is_featured'     => (int) ((bool) ($g['is_featured'] ?? false)),
-                            'show_home'       => (int) ((bool) ($g['show_home'] ?? true)),
-                            'updated_at'      => now(),
-                        ];
-
-                        if (!$exists) {
-                            $payload['created_at'] = now();
-                        }
-
-                        DB::table('games')->updateOrInsert(
-                            ['game_code' => $gameCode],
-                            $payload
-                        );
-
-                        if ($exists) {
-                            $providerSummary['updated']++;
-                        } else {
-                            $providerSummary['created']++;
-                        }
-                    } catch (\Throwable $e) {
-                        $providerSummary['errors']++;
-                        // continua, não derruba o sync inteiro
                     }
-                }
-
-                DB::commit();
-
-                $summary['providers'][] = $providerSummary;
+                });
 
                 $this->line(json_encode([
                     'ok' => true,
@@ -155,13 +162,9 @@ class GamesSync extends Command
                     'skipped' => $providerSummary['skipped'],
                     'errors' => $providerSummary['errors'],
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-
             } catch (\Throwable $e) {
-                DB::rollBack();
-
                 $providerSummary['ok'] = false;
                 $providerSummary['error'] = $e->getMessage();
-                $summary['providers'][] = $providerSummary;
 
                 $this->error("ERRO: {$e->getMessage()}");
             }
