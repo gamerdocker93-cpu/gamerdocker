@@ -18,6 +18,14 @@ class FakeProvider implements ProviderInterface
     }
 
     /**
+     * Necessário: alguns comandos/fluxos chamam $p->provider()
+     */
+    public function provider(): GameProvider
+    {
+        return $this->provider;
+    }
+
+    /**
      * Lista/validação do provider (providers:sync usa isso).
      * Retorna dados simples e estáveis.
      */
@@ -25,11 +33,11 @@ class FakeProvider implements ProviderInterface
     {
         return [
             [
-                'code' => (string) $this->provider->code,
-                'name' => (string) $this->provider->name,
+                'code'    => (string) $this->provider->code,
+                'name'    => (string) $this->provider->name,
                 'enabled' => (bool) $this->provider->enabled,
-                'base_url' => (string) ($this->provider->base_url ?? ''),
-                'mode' => 'fake',
+                'base_url'=> (string) ($this->provider->base_url ?? ''),
+                'mode'    => 'fake',
             ],
         ];
     }
@@ -42,8 +50,7 @@ class FakeProvider implements ProviderInterface
     {
         $code = (string) $this->provider->code;
 
-        // Jogos mockados (você pode aumentar depois)
-        $games = [
+        return [
             $this->game($code, 1001, 'fake_sweet_bonanza', 'Sweet Bonanza (Fake)', 'slot'),
             $this->game($code, 1002, 'fake_gates_olympus', 'Gates of Olympus (Fake)', 'slot'),
             $this->game($code, 1003, 'fake_big_bass', 'Big Bass Bonanza (Fake)', 'slot'),
@@ -55,8 +62,6 @@ class FakeProvider implements ProviderInterface
             $this->game($code, 1009, 'fake_plinko', 'Plinko (Fake)', 'instant'),
             $this->game($code, 1010, 'fake_book_dead', 'Book of Dead (Fake)', 'slot'),
         ];
-
-        return $games;
     }
 
     /**
@@ -65,14 +70,12 @@ class FakeProvider implements ProviderInterface
     protected function game(string $providerCode, int $id, string $gameCode, string $name, string $type): array
     {
         return [
-            // Identidade
             'provider_code' => $providerCode,
             'game_id'       => (string) $id,
             'game_code'     => $gameCode,
             'game_name'     => $name,
             'game_type'     => $type,
 
-            // Extras comuns no seu DB (se não existir no import, é só ignorar)
             'description'   => $name . ' - gerado pelo FakeProvider.',
             'cover'         => null,
             'status'        => 1,
@@ -87,7 +90,6 @@ class FakeProvider implements ProviderInterface
             'is_featured'   => false,
             'show_home'     => false,
 
-            // Se seu sistema usa URL de launch/iframe em algum lugar, pode ajustar depois
             'game_server_url' => $this->provider->baseUrl() ?: null,
         ];
     }
