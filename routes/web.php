@@ -152,7 +152,6 @@ if ($internalEnabled) {
                 ]);
             }
 
-            // diferença em segundos desde a última execução
             $lastRanAt = $row->last_ran_at ? \Carbon\Carbon::parse($row->last_ran_at) : null;
             $ageSeconds = $lastRanAt ? now()->diffInSeconds($lastRanAt) : null;
 
@@ -192,11 +191,9 @@ if ($internalEnabled) {
         $q = mb_strtolower(trim((string) $request->query('q', '')));
 
         try {
-            // Garante bootstrap do console para registrar comandos do Kernel
             $kernel = app(\Illuminate\Contracts\Console\Kernel::class);
             $kernel->bootstrap();
 
-            // Artisan::all() existe; app()->all() NÃO
             $all = collect(Artisan::all())->keys()->values();
 
             if ($q !== '') {
@@ -292,7 +289,76 @@ if ($internalEnabled) {
     });
 
     /**
-     * RODAR SYNC DE PROVIDERS/GAMES (interno, sem shell)
+     * RODAR COMANDOS INTERNOS (sem shell) - ALLOWLIST
+     *
+     * Use:
+     * /_internal/run-command/providers:sync?token=SEU_TOKEN
+     * /_internal/run-command/providers:sync/testproviderfake?token=SEU_TOKEN
+     * /_internal/run-command/games:sync/testproviderfake?token=SEU_TOKEN
+     * /_internal/run-command/games:sync/testproviderfake?token=SEU_TOKEN&dry_run=1
+     */
+    Route::get('/_internal/run-command/{cmd}/{arg1?}', function (Request $request, string $cmd, ?string $arg1 = null) {
+        _internalTokenOr404($request);
+
+        $cmd = strtolower(trim($cmd));
+        $arg1 = $arg1 !== null ? strtolower(trim($arg1)) : null;
+
+        // allowlist: só o que a gente quer expor via URL
+        $allowed = [
+            'providers:sync',
+            'games:sync',
+        ];
+
+        if (!in_array($cmd, $allowed, true)) {
+            abort(404);
+        }
+
+        try {
+            $params = [];
+
+            // nossos comandos são: providers:sync {code?} e games:sync {code?}
+            if ($arg1 !== null && $arg1 !== '') {
+                $params['code'] = $arg1;
+            }
+
+            // games:sync tem --dry-run
+            if ($cmd === 'games:sync') {
+                $dry = $request->query('dry_run', null);
+                if ($dry !== null) {
+                    $params['--dry-run'] = filter_var($dry, FILTER_VALIDATE_BOOLEAN);
+                }
+            }
+
+            $exit = Artisan::call($cmd, $params);
+            $out  = trim(Artisan::output());
+
+            return response()->json([
+                'ok' => $exit === 0,
+                'command' => $cmd,
+                'args' => $params,
+                'exit' => $exit,
+                'output' => $out,
+                'ts' => now()->toDateTimeString(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('RUN_COMMAND: falhou', [
+                'cmd' => $cmd,
+                'arg1' => $arg1,
+                'err' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'ok' => false,
+                'command' => $cmd,
+                'arg1' => $arg1,
+                'error' => $e->getMessage(),
+                'ts' => now()->toDateTimeString(),
+            ], 500);
+        }
+    });
+
+    /**
+     * (LEGADO) RODAR SYNC DE PROVIDERS/GAMES (interno, sem shell)
      *
      * Use:
      * /_internal/providers/run-sync/testproviderfake?token=SEU_TOKEN
