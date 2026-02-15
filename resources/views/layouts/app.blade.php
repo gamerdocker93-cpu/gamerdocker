@@ -106,6 +106,22 @@
         :is(.dark .bg-base) {
             background-color: {{ $custom['background_base_dark'] ?? '#0b0f19' }};
         }
+
+        /* CORREÇÃO DO BOTÃO CENTRAL MOBILE */
+        .fixed.bottom-0.left-0.z-50.w-full.h-16 {
+            display: flex !important;
+            justify-content: space-around !important;
+            align-items: center !important;
+        }
+
+        .fixed.bottom-0.left-0.z-50.w-full.h-16 > a:nth-child(3), 
+        .fixed.bottom-0.left-0.z-50.w-full.h-16 > button:nth-child(3) {
+            position: absolute !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            bottom: 12px !important;
+            z-index: 60 !important;
+        }
     </style>
 
     @if(!empty($custom['custom_css']))
@@ -118,12 +134,10 @@
         {!! $custom['custom_header'] !!}
     @endif
 
-    {{-- CORRETO (Laravel + Vite): usa o manifest automaticamente --}}
     @vite(['resources/js/app.js', 'resources/css/app.css'])
 </head>
 
 <body color-theme="dark" class="bg-base text-gray-800 dark:text-gray-300">
-    {{-- APP ROOT (SPA) --}}
     <div id="app">
         <div style="padding:12px;color:#fff;opacity:.85;">
             Carregando interface...
